@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     isPlaying: false,
     isSeeking: false,
     isNpSeeking: false,
+    isPvSeeking: false,
     shuffle: false,
     repeatMode: 'none', // 'none', 'all', 'one'
     volume: 0.8,
@@ -71,6 +72,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const npQueuePanel = document.getElementById('np-queue-panel');
   const npQueueList = document.getElementById('np-queue-list');
   const npQueueClose = document.getElementById('np-queue-close');
+
+  // Player View (mobile)
+  const playerView = document.getElementById('player-view');
+  const pvArtwork = document.getElementById('pv-artwork');
+  const pvTitle = document.getElementById('pv-title');
+  const pvArtist = document.getElementById('pv-artist');
+  const pvSeek = document.getElementById('pv-seek');
+  const pvCurrentTime = document.getElementById('pv-current-time');
+  const pvTotalTime = document.getElementById('pv-total-time');
+  const pvPlayBtn = document.getElementById('btn-pv-play');
+  const pvPlayIcon = document.getElementById('pv-play-icon');
+  const btnPvPrev = document.getElementById('btn-pv-prev');
+  const btnPvNext = document.getElementById('btn-pv-next');
+  const btnPvShuffle = document.getElementById('btn-pv-shuffle');
+  const btnPvRepeat = document.getElementById('btn-pv-repeat');
+  const btnPvVolume = document.getElementById('btn-pv-volume');
+  const pvVolumeSlider = document.getElementById('pv-volume');
+  const pvLyricsContainer = document.getElementById('pv-lyrics');
 
   // Editor Header
   const editorTrackNum = document.getElementById('editor-track-num');
@@ -357,6 +376,11 @@ document.addEventListener('DOMContentLoaded', () => {
     playerSeek.value = 0;
     playerTotalTime.textContent = formatTime(dur);
     npSeek.max = Math.floor(dur);
+    if (pvSeek) {
+      pvSeek.max = Math.floor(dur);
+      pvSeek.value = 0;
+      pvTotalTime.textContent = formatTime(dur);
+    }
 
     // Store duration on the track and update UI
     const track = state.tracks.find(t => t.id === state.selectedTrackId);
@@ -373,6 +397,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (!playerState.isNpSeeking) {
       npSeek.value = Math.floor(audioElement.currentTime);
+    }
+    if (!playerState.isPvSeeking && pvSeek) {
+      pvSeek.value = Math.floor(audioElement.currentTime);
+      pvCurrentTime.textContent = formatTime(audioElement.currentTime);
     }
     updateSyncedLyricsHighlight();
   });
@@ -407,28 +435,53 @@ document.addEventListener('DOMContentLoaded', () => {
         ? '<polygon points="6 3 20 12 6 21 6 3"/>'
         : '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
     }
+    // Sync player view play icon
+    if (pvPlayIcon) {
+      pvPlayIcon.innerHTML = paused
+        ? '<polygon points="6 3 20 12 6 21 6 3"/>'
+        : '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+    }
   }
 
   // --- Now Playing Bar ---
   function updateNowPlayingBar(track) {
     if (!track) {
       nowPlayingBar.style.display = 'none';
+      if (pvTitle) pvTitle.textContent = 'No track selected';
+      if (pvArtist) pvArtist.textContent = '';
       return;
     }
     nowPlayingBar.style.display = 'flex';
     npTitle.textContent = track.title || track.name;
     npArtist.textContent = track.artist || 'Unknown Artist';
 
+    if (pvTitle) pvTitle.textContent = track.title || track.name;
+    if (pvArtist) pvArtist.textContent = track.artist || 'Unknown Artist';
+
     if (track.coverArt && track.coverArt.url) {
       npArtwork.style.backgroundImage = `url(${track.coverArt.url})`;
       npArtwork.innerHTML = '';
+      if (pvArtwork) {
+        pvArtwork.style.backgroundImage = `url(${track.coverArt.url})`;
+        pvArtwork.innerHTML = '';
+      }
     } else {
       npArtwork.style.backgroundImage = 'none';
       npArtwork.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9.5V20l12-8L7 4"/></svg>';
+      if (pvArtwork) {
+        pvArtwork.style.backgroundImage = 'none';
+        pvArtwork.innerHTML = '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9.5V20l12-8L7 4"/></svg>';
+      }
     }
 
     npSeek.max = Math.floor(audioElement.duration || 100);
     npSeek.value = 0;
+    if (pvSeek) {
+      pvSeek.max = Math.floor(audioElement.duration || 100);
+      pvSeek.value = 0;
+      if (pvCurrentTime) pvCurrentTime.textContent = '0:00';
+      if (pvTotalTime) pvTotalTime.textContent = formatTime(audioElement.duration);
+    }
   }
 
   // Now-playing bar controls
@@ -453,6 +506,55 @@ document.addEventListener('DOMContentLoaded', () => {
     playerState.isNpSeeking = false;
   });
 
+  // Player View controls (mobile)
+  if (pvPlayBtn) {
+    pvPlayBtn.addEventListener('click', () => playerPlayBtn.click());
+  }
+  if (btnPvPrev) {
+    btnPvPrev.addEventListener('click', () => btnPlayerPrev.click());
+  }
+  if (btnPvNext) {
+    btnPvNext.addEventListener('click', () => btnPlayerNext.click());
+  }
+  if (btnPvShuffle) {
+    btnPvShuffle.addEventListener('click', () => {
+      playerState.shuffle = !playerState.shuffle;
+      btnPvShuffle.classList.toggle('active', playerState.shuffle);
+      btnPlayerShuffle.classList.toggle('active', playerState.shuffle);
+      btnNpShuffle.classList.toggle('active', playerState.shuffle);
+    });
+  }
+  if (btnPvRepeat) {
+    btnPvRepeat.addEventListener('click', () => {
+      if (playerState.repeatMode === 'none') { playerState.repeatMode = 'all'; }
+      else if (playerState.repeatMode === 'all') { playerState.repeatMode = 'one'; }
+      else { playerState.repeatMode = 'none'; }
+      syncRepeatBtnUI();
+    });
+  }
+  if (pvSeek) {
+    pvSeek.addEventListener('input', () => { playerState.isPvSeeking = true; });
+    pvSeek.addEventListener('change', () => {
+      audioElement.currentTime = pvSeek.value;
+      playerState.isPvSeeking = false;
+    });
+  }
+  if (pvVolumeSlider) {
+    pvVolumeSlider.addEventListener('input', () => {
+      playerState.volume = pvVolumeSlider.value / 100;
+      audioElement.volume = playerState.volume;
+      playerState.isMuted = playerState.volume === 0;
+      updateVolumeIconUI();
+    });
+  }
+  if (btnPvVolume) {
+    btnPvVolume.addEventListener('click', () => {
+      playerState.isMuted = !playerState.isMuted;
+      audioElement.volume = playerState.isMuted ? 0 : playerState.volume;
+      updateVolumeIconUI();
+    });
+  }
+
   function loadTrackIntoPlayer(track) {
     audioElement.pause();
     audioElement.src = '';
@@ -470,6 +572,9 @@ document.addEventListener('DOMContentLoaded', () => {
     playerCurrentTime.textContent = '0:00';
     playerTotalTime.textContent = '0:00';
     playerSeek.value = 0;
+    if (pvCurrentTime) pvCurrentTime.textContent = '0:00';
+    if (pvTotalTime) pvTotalTime.textContent = '0:00';
+    if (pvSeek) pvSeek.value = 0;
     
     playerState.isPlaying = false;
     setPlayIcon(true);
@@ -590,6 +695,7 @@ document.addEventListener('DOMContentLoaded', () => {
       playerState.shuffle = !playerState.shuffle;
       btnNpShuffle.classList.toggle('active', playerState.shuffle);
       btnPlayerShuffle.classList.toggle('active', playerState.shuffle);
+      if (btnPvShuffle) btnPvShuffle.classList.toggle('active', playerState.shuffle);
     });
   }
 
@@ -622,6 +728,10 @@ document.addEventListener('DOMContentLoaded', () => {
       btnNpRepeat.className = 'btn btn-control btn-control-xs';
     }
     btnPlayerRepeat.className = 'btn btn-control btn-control-sm' + (playerState.repeatMode === 'all' ? ' active-all' : playerState.repeatMode === 'one' ? ' active-one' : '');
+    if (btnPvRepeat) {
+      const baseClass = 'btn btn-control btn-control-sm';
+      btnPvRepeat.className = baseClass + (playerState.repeatMode === 'all' ? ' active-all' : playerState.repeatMode === 'one' ? ' active-one' : '');
+    }
   }
 
   if (btnNpVolume) {
@@ -666,8 +776,16 @@ document.addEventListener('DOMContentLoaded', () => {
         ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3s4 2.4 4 9.6c0 2-.31 3.54-.76 4.72M17 8v6M8.58 8 7.1 9H3v4m10-4V5l-1.85 1.25M3 16h4.29L13 20v-6.35M4 2l16 20"/></svg>'
         : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16h4.29L13 20V5L7.1 9H3v4M17 3s4 2.4 4 9.6-4 8.4-4 8.4m0-13v8"/></svg>';
     }
+    if (btnPvVolume) {
+      btnPvVolume.innerHTML = (playerState.isMuted || playerState.volume === 0)
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3s4 2.4 4 9.6c0 2-.31 3.54-.76 4.72M17 8v6M8.58 8 7.1 9H3v4m10-4V5l-1.85 1.25M3 16h4.29L13 20v-6.35M4 2l16 20"/></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16h4.29L13 20V5L7.1 9H3v4M17 3s4 2.4 4 9.6-4 8.4-4 8.4m0-13v8"/></svg>';
+    }
     if (npVolumeSlider) {
       npVolumeSlider.value = Math.floor(playerState.volume * 100);
+    }
+    if (pvVolumeSlider) {
+      pvVolumeSlider.value = Math.floor(playerState.volume * 100);
     }
   }
 
@@ -781,15 +899,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (playerState.lyrics.length === 0) {
       playerLyricsContainer.style.display = 'none';
       playerLyricsContainer.innerHTML = '';
+      if (pvLyricsContainer) {
+        pvLyricsContainer.style.display = 'none';
+        pvLyricsContainer.innerHTML = '';
+      }
       return;
     }
 
-    playerLyricsContainer.style.display = 'block';
-    playerLyricsContainer.innerHTML = playerState.lyrics.map((line, index) => `
+    const html = playerState.lyrics.map((line, index) => `
       <div class="lyric-line" id="lyric-line-${index}" data-time="${line.time}">
         ${escapeHTML(line.text)}
       </div>
     `).join('');
+
+    playerLyricsContainer.style.display = 'block';
+    playerLyricsContainer.innerHTML = html;
+
+    if (pvLyricsContainer) {
+      pvLyricsContainer.style.display = 'block';
+      pvLyricsContainer.innerHTML = html;
+    }
   }
 
   function updateSyncedLyricsHighlight() {
@@ -807,8 +936,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (activeIndex !== -1 && activeIndex !== playerState.currentLyricIndex) {
-      const oldActive = document.querySelector('.lyric-line.active');
-      if (oldActive) oldActive.classList.remove('active');
+      document.querySelectorAll('.lyric-line.active').forEach(el => el.classList.remove('active'));
 
       const newActive = document.getElementById(`lyric-line-${activeIndex}`);
       if (newActive) {
@@ -823,25 +951,43 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
+      // Also highlight and scroll in PV container
+      const newActivePv = pvLyricsContainer ? pvLyricsContainer.querySelector(`#lyric-line-${activeIndex}`) : null;
+      if (newActivePv) {
+        newActivePv.classList.add('active');
+        const containerHeight = pvLyricsContainer.clientHeight;
+        const lineOffsetTop = newActivePv.offsetTop;
+        const lineHeight = newActivePv.clientHeight;
+        pvLyricsContainer.scrollTo({
+          top: lineOffsetTop - (containerHeight / 2) + (lineHeight / 2),
+          behavior: 'smooth'
+        });
+      }
+
       playerState.currentLyricIndex = activeIndex;
     }
   }
 
-  // Handle click on lyric line to seek
-  if (playerLyricsContainer) {
-    playerLyricsContainer.addEventListener('click', (e) => {
-      const line = e.target.closest('.lyric-line');
-      if (line) {
-        const time = parseFloat(line.dataset.time);
-        if (!isNaN(time)) {
-          audioElement.currentTime = time;
-          if (!playerState.isSeeking) {
-            playerSeek.value = Math.floor(time);
-            playerCurrentTime.textContent = formatTime(time);
-          }
+  function handleLyricClick(e) {
+    const line = e.target.closest('.lyric-line');
+    if (line) {
+      const time = parseFloat(line.dataset.time);
+      if (!isNaN(time)) {
+        audioElement.currentTime = time;
+        if (!playerState.isSeeking) {
+          playerSeek.value = Math.floor(time);
+          playerCurrentTime.textContent = formatTime(time);
         }
       }
-    });
+    }
+  }
+
+  // Handle click on lyric line to seek (both desktop and PV containers)
+  if (playerLyricsContainer) {
+    playerLyricsContainer.addEventListener('click', handleLyricClick);
+  }
+  if (pvLyricsContainer) {
+    pvLyricsContainer.addEventListener('click', handleLyricClick);
   }
 
   // --- Manual Lyrics Search ---
@@ -1032,6 +1178,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     });
+  } else {
+    // Fallback for iOS/unsupported browsers: use hidden file input
+    btnOpenFiles.addEventListener('click', () => fileInput.click());
+    btnOpenFolder.addEventListener('click', () => fileInput.click());
   }
 
   // --- Drag & Drop ---
