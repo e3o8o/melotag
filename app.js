@@ -1034,7 +1034,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function fetchLyricsFromLRCLIB(title, artist) {
     if (!title || !artist) return '';
     try {
-      const url = `https://lrclib.net/api/search?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}`;
+      const url = `/api/lrclib/api/search?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}`;
       const res = await fetch(url, {
         headers: {
           'User-Agent': 'MeloTag/1.0.0 (https://melotag.com)'
@@ -1057,7 +1057,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=6`;
+      const url = `/api/itunes/search?term=${encodeURIComponent(query)}&media=music&limit=6`;
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeout);
       if (!res.ok) {
