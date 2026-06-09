@@ -4,8 +4,8 @@
   "description": "MeloTag — Premium Client-Side Music Player & ID3 Tag Editor",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#fff8e0",
-  "theme_color": "#fa520f",
+  "background_color": "#ffffff",
+  "theme_color": "#F5C518",
   "orientation": "portrait-primary",
   "icons": [
     {

@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     objectUrl: null,
     isPlaying: false,
     isSeeking: false,
+    isNpSeeking: false,
     shuffle: false,
     repeatMode: 'none', // 'none', 'all', 'one'
     volume: 0.8,
@@ -29,7 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const inspectorEmpty = document.getElementById('inspector-empty');
   const inspectorContent = document.getElementById('inspector-content');
-  const blurredBg = document.getElementById('blurred-bg');
   
   // File System Access Buttons
   const btnOpenFiles = document.getElementById('btn-open-files');
@@ -54,6 +54,102 @@ document.addEventListener('DOMContentLoaded', () => {
   const playerVisualizer = document.getElementById('player-visualizer');
   const librarySearchInput = document.getElementById('library-search-input');
   const navTabs = document.querySelectorAll('.nav-tab');
+
+  // Now Playing Bar
+  const nowPlayingBar = document.getElementById('now-playing-bar');
+  const npArtwork = document.getElementById('np-artwork');
+  const npTitle = document.getElementById('np-title');
+  const npArtist = document.getElementById('np-artist');
+  const npSeek = document.getElementById('np-seek');
+  const npPlayBtn = document.getElementById('np-play-btn');
+  const npPlayIcon = document.getElementById('np-play-icon');
+  const npInfoClick = document.getElementById('np-info-click');
+  const btnNpPrev = document.getElementById('btn-np-prev');
+  const btnNpNext = document.getElementById('btn-np-next');
+  const npVolumeSlider = document.getElementById('np-volume-slider');
+  const btnNpQueue = document.getElementById('btn-np-queue');
+  const npQueuePanel = document.getElementById('np-queue-panel');
+  const npQueueList = document.getElementById('np-queue-list');
+  const npQueueClose = document.getElementById('np-queue-close');
+
+  // Editor Header
+  const editorTrackNum = document.getElementById('editor-track-num');
+  const editorTrackName = document.getElementById('editor-track-name');
+
+  // Mobile Chrome
+  const mobileHeaderTitle = document.getElementById('mobile-header-title');
+  const mobileBackBtn = document.getElementById('mobile-back-btn');
+  const mobileStatusTime = document.getElementById('mobile-status-time');
+
+  // Set mobile status bar time
+  function updateMobileStatusTime() {
+    if (mobileStatusTime) {
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      mobileStatusTime.textContent = `${h}:${m < 10 ? '0' : ''}${m}`;
+    }
+  }
+  updateMobileStatusTime();
+  setInterval(updateMobileStatusTime, 30000);
+
+  // Modal helper
+  const modalOverlay = document.getElementById('modal-overlay');
+  const modalTitle = document.getElementById('modal-title');
+  const modalMessage = document.getElementById('modal-message');
+  const modalInput = document.getElementById('modal-input');
+  const modalInputWrap = document.getElementById('modal-input-wrap');
+  const modalOkBtn = document.getElementById('modal-ok-btn');
+  const modalCancelBtn = document.getElementById('modal-cancel-btn');
+  const modalCloseBtn = document.getElementById('modal-close-btn');
+
+  function showModal(title, message, options = {}) {
+    return new Promise((resolve) => {
+      modalTitle.textContent = title;
+      modalMessage.textContent = message;
+
+      if (options.type === 'prompt') {
+        modalInputWrap.style.display = 'block';
+        modalInput.value = options.defaultValue || '';
+        modalCancelBtn.style.display = 'inline-flex';
+        setTimeout(() => modalInput.focus(), 100);
+      } else {
+        modalInputWrap.style.display = 'none';
+        modalCancelBtn.style.display = 'none';
+      }
+
+      modalOverlay.style.display = 'flex';
+
+      function cleanup() {
+        modalOverlay.style.display = 'none';
+        modalOkBtn.removeEventListener('click', onOk);
+        modalCancelBtn.removeEventListener('click', onCancel);
+        modalCloseBtn.removeEventListener('click', onCancel);
+        modalOverlay.removeEventListener('click', onOverlay);
+      }
+
+      function onOk() {
+        cleanup();
+        resolve(options.type === 'prompt' ? modalInput.value : true);
+      }
+
+      function onCancel() {
+        cleanup();
+        resolve(null);
+      }
+
+      function onOverlay(e) {
+        if (e.target === modalOverlay) onCancel();
+      }
+
+      modalOkBtn.addEventListener('click', onOk);
+      modalCancelBtn.addEventListener('click', onCancel);
+      modalCloseBtn.addEventListener('click', onCancel);
+      modalOverlay.addEventListener('click', onOverlay);
+
+      modalOkBtn.focus();
+    });
+  }
 
   // Form Inputs
   const inputTitle = document.getElementById('input-title');
@@ -83,7 +179,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDownload = document.getElementById('btn-download');
   const btnAutoMatchAll = document.getElementById('btn-auto-match-all');
   const btnSaveAll = document.getElementById('btn-save-all');
-  const btnReset = document.getElementById('btn-reset');
   const successOverlay = document.getElementById('success-overlay');
 
   // Suggestions
@@ -93,20 +188,30 @@ document.addEventListener('DOMContentLoaded', () => {
   const suggestionsSearchInput = document.getElementById('suggestions-search-input');
   const btnSuggestionsSearch = document.getElementById('btn-suggestions-search');
 
-  // Initialize Lucide Icons
-  lucide.createIcons();
-
   // Mobile nav tabs view switcher default
-  document.body.className = 'tab-library';
+  switchMobileTab('library');
+
+  function switchMobileTab(tabName) {
+    document.body.className = 'tab-' + tabName;
+    navTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+
+    // Update mobile header
+    const titles = { library: 'MeloTag', player: 'Now Playing', editor: 'Tag Editor' };
+    mobileHeaderTitle.textContent = titles[tabName] || 'MeloTag';
+
+    // Show back button on non-library tabs
+    mobileBackBtn.style.display = tabName === 'library' ? 'none' : 'flex';
+  }
 
   navTabs.forEach(tab => {
     tab.addEventListener('click', () => {
-      navTabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      
       const tabName = tab.dataset.tab;
-      document.body.className = 'tab-' + tabName;
+      switchMobileTab(tabName);
     });
+  });
+
+  mobileBackBtn.addEventListener('click', () => {
+    switchMobileTab('library');
   });
 
   // Library Search filtering
@@ -182,12 +287,12 @@ document.addEventListener('DOMContentLoaded', () => {
     for (let i = 0; i < bufferLength; i++) {
       barHeight = dataArray[i] / 4; // Scaled down for canvas height
 
-      // Draw bars with primary color gradient/glow
-      canvasCtx.fillStyle = `rgba(250, 82, 15, ${0.1 + (barHeight / 64)})`;
+      // Draw bars with chrome yellow gradient
+      canvasCtx.fillStyle = `rgba(245, 197, 24, ${0.1 + (barHeight / 64)})`;
       canvasCtx.fillRect(x, height - barHeight, barWidth - 2, barHeight);
 
-      // Top glowing dot/cap
-      canvasCtx.fillStyle = 'rgba(255, 161, 16, 0.9)';
+      // Top dot/cap
+      canvasCtx.fillStyle = 'rgba(245, 197, 24, 0.7)';
       canvasCtx.fillRect(x, height - barHeight - 2, barWidth - 2, 2);
 
       x += barWidth;
@@ -210,8 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   audioElement.addEventListener('play', () => {
     playerState.isPlaying = true;
-    playerPlayIcon.setAttribute('data-lucide', 'pause');
-    lucide.createIcons();
+    setPlayIcon(false);
     
     // Setup and start visualizer
     initVisualizer();
@@ -226,8 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   audioElement.addEventListener('pause', () => {
     playerState.isPlaying = false;
-    playerPlayIcon.setAttribute('data-lucide', 'play');
-    lucide.createIcons();
+    setPlayIcon(true);
     
     // Toggle equalizer animation in sidebar
     const track = state.tracks.find(t => t.id === state.selectedTrackId);
@@ -236,11 +339,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   audioElement.addEventListener('ended', () => {
     playerState.isPlaying = false;
-    playerPlayIcon.setAttribute('data-lucide', 'play');
+    setPlayIcon(true);
     playerSeek.value = 0;
     playerCurrentTime.textContent = '0:00';
-    lucide.createIcons();
-    
+
     // Toggle equalizer animation in sidebar
     const track = state.tracks.find(t => t.id === state.selectedTrackId);
     if (track) updateTrackListItemUI(track);
@@ -250,15 +352,27 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   audioElement.addEventListener('loadedmetadata', () => {
-    playerSeek.max = Math.floor(audioElement.duration || 100);
+    const dur = audioElement.duration || 100;
+    playerSeek.max = Math.floor(dur);
     playerSeek.value = 0;
-    playerTotalTime.textContent = formatTime(audioElement.duration);
+    playerTotalTime.textContent = formatTime(dur);
+    npSeek.max = Math.floor(dur);
+
+    // Store duration on the track and update UI
+    const track = state.tracks.find(t => t.id === state.selectedTrackId);
+    if (track) {
+      track.duration = Math.floor(dur);
+      updateTrackListItemUI(track);
+    }
   });
 
   audioElement.addEventListener('timeupdate', () => {
     if (!playerState.isSeeking) {
       playerSeek.value = Math.floor(audioElement.currentTime);
       playerCurrentTime.textContent = formatTime(audioElement.currentTime);
+    }
+    if (!playerState.isNpSeeking) {
+      npSeek.value = Math.floor(audioElement.currentTime);
     }
     updateSyncedLyricsHighlight();
   });
@@ -280,6 +394,65 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   }
 
+  function setPlayIcon(paused) {
+    if (!playerPlayIcon) return;
+    if (paused) {
+      playerPlayIcon.innerHTML = '<polygon points="6 3 20 12 6 21 6 3"/>';
+    } else {
+      playerPlayIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+    }
+    // Sync now-playing bar play icon
+    if (npPlayIcon) {
+      npPlayIcon.innerHTML = paused
+        ? '<polygon points="6 3 20 12 6 21 6 3"/>'
+        : '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+    }
+  }
+
+  // --- Now Playing Bar ---
+  function updateNowPlayingBar(track) {
+    if (!track) {
+      nowPlayingBar.style.display = 'none';
+      return;
+    }
+    nowPlayingBar.style.display = 'flex';
+    npTitle.textContent = track.title || track.name;
+    npArtist.textContent = track.artist || 'Unknown Artist';
+
+    if (track.coverArt && track.coverArt.url) {
+      npArtwork.style.backgroundImage = `url(${track.coverArt.url})`;
+      npArtwork.innerHTML = '';
+    } else {
+      npArtwork.style.backgroundImage = 'none';
+      npArtwork.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9.5V20l12-8L7 4"/></svg>';
+    }
+
+    npSeek.max = Math.floor(audioElement.duration || 100);
+    npSeek.value = 0;
+  }
+
+  // Now-playing bar controls
+  npPlayBtn.addEventListener('click', () => {
+    playerPlayBtn.click();
+  });
+
+  btnNpPrev.addEventListener('click', () => {
+    btnPlayerPrev.click();
+  });
+
+  btnNpNext.addEventListener('click', () => {
+    btnPlayerNext.click();
+  });
+
+  npSeek.addEventListener('input', () => {
+    playerState.isNpSeeking = true;
+  });
+
+  npSeek.addEventListener('change', () => {
+    audioElement.currentTime = npSeek.value;
+    playerState.isNpSeeking = false;
+  });
+
   function loadTrackIntoPlayer(track) {
     audioElement.pause();
     audioElement.src = '';
@@ -299,8 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
     playerSeek.value = 0;
     
     playerState.isPlaying = false;
-    playerPlayIcon.setAttribute('data-lucide', 'play');
-    lucide.createIcons();
+    setPlayIcon(true);
 
     // Volume configuration
     audioElement.volume = playerState.isMuted ? 0 : playerState.volume;
@@ -395,18 +567,70 @@ document.addEventListener('DOMContentLoaded', () => {
   btnPlayerRepeat.addEventListener('click', () => {
     if (playerState.repeatMode === 'none') {
       playerState.repeatMode = 'all';
-      btnPlayerRepeat.className = 'btn btn-secondary btn-icon-only btn-sm active-all';
+      btnPlayerRepeat.className = 'btn btn-control btn-control-sm active-all';
       btnPlayerRepeat.title = 'Repeat Loop: All';
     } else if (playerState.repeatMode === 'all') {
       playerState.repeatMode = 'one';
-      btnPlayerRepeat.className = 'btn btn-secondary btn-icon-only btn-sm active-one';
+      btnPlayerRepeat.className = 'btn btn-control btn-control-sm active-one';
       btnPlayerRepeat.title = 'Repeat Loop: One';
     } else {
       playerState.repeatMode = 'none';
-      btnPlayerRepeat.className = 'btn btn-secondary btn-icon-only btn-sm';
+      btnPlayerRepeat.className = 'btn btn-control btn-control-sm';
       btnPlayerRepeat.title = 'Repeat Mode';
     }
   });
+
+  // Now-playing bar controls
+  const btnNpShuffle = document.getElementById('btn-np-shuffle');
+  const btnNpRepeat = document.getElementById('btn-np-repeat');
+  const btnNpVolume = document.getElementById('btn-np-volume');
+
+  if (btnNpShuffle) {
+    btnNpShuffle.addEventListener('click', () => {
+      playerState.shuffle = !playerState.shuffle;
+      btnNpShuffle.classList.toggle('active', playerState.shuffle);
+      btnPlayerShuffle.classList.toggle('active', playerState.shuffle);
+    });
+  }
+
+  if (btnNpRepeat) {
+    btnNpRepeat.addEventListener('click', () => {
+      if (playerState.repeatMode === 'none') {
+        playerState.repeatMode = 'all';
+        btnNpRepeat.className = 'btn btn-control btn-control-xs active-all';
+        btnNpRepeat.title = 'Repeat Loop: All';
+      } else if (playerState.repeatMode === 'all') {
+        playerState.repeatMode = 'one';
+        btnNpRepeat.className = 'btn btn-control btn-control-xs active-one';
+        btnNpRepeat.title = 'Repeat Loop: One';
+      } else {
+        playerState.repeatMode = 'none';
+        btnNpRepeat.className = 'btn btn-control btn-control-xs';
+        btnNpRepeat.title = 'Repeat Mode';
+      }
+      syncRepeatBtnUI();
+    });
+  }
+
+  function syncRepeatBtnUI() {
+    if (!btnNpRepeat) return;
+    if (playerState.repeatMode === 'all') {
+      btnNpRepeat.className = 'btn btn-control btn-control-xs active-all';
+    } else if (playerState.repeatMode === 'one') {
+      btnNpRepeat.className = 'btn btn-control btn-control-xs active-one';
+    } else {
+      btnNpRepeat.className = 'btn btn-control btn-control-xs';
+    }
+    btnPlayerRepeat.className = 'btn btn-control btn-control-sm' + (playerState.repeatMode === 'all' ? ' active-all' : playerState.repeatMode === 'one' ? ' active-one' : '');
+  }
+
+  if (btnNpVolume) {
+    btnNpVolume.addEventListener('click', () => {
+      playerState.isMuted = !playerState.isMuted;
+      audioElement.volume = playerState.isMuted ? 0 : playerState.volume;
+      updateVolumeIconUI();
+    });
+  }
 
   // Volume slider controls
   playerVolume.addEventListener('input', () => {
@@ -423,17 +647,109 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function updateVolumeIconUI() {
-    if (playerState.isMuted || playerState.volume === 0) {
-      playerVolumeIcon.setAttribute('data-lucide', 'volume-x');
-    } else if (playerState.volume < 0.4) {
-      playerVolumeIcon.setAttribute('data-lucide', 'volume');
-    } else if (playerState.volume < 0.7) {
-      playerVolumeIcon.setAttribute('data-lucide', 'volume-1');
-    } else {
-      playerVolumeIcon.setAttribute('data-lucide', 'volume-2');
+    const volumeSvg = document.getElementById('volume-svg');
+    if (volumeSvg) {
+      let svg;
+      if (playerState.isMuted || playerState.volume === 0) {
+        svg = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>';
+      } else if (playerState.volume < 0.4) {
+        svg = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>';
+      } else if (playerState.volume < 0.7) {
+        svg = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+      } else {
+        svg = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>';
+      }
+      volumeSvg.innerHTML = svg;
     }
-    lucide.createIcons();
+    if (btnNpVolume) {
+      btnNpVolume.innerHTML = (playerState.isMuted || playerState.volume === 0)
+        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3s4 2.4 4 9.6c0 2-.31 3.54-.76 4.72M17 8v6M8.58 8 7.1 9H3v4m10-4V5l-1.85 1.25M3 16h4.29L13 20v-6.35M4 2l16 20"/></svg>'
+        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16h4.29L13 20V5L7.1 9H3v4M17 3s4 2.4 4 9.6-4 8.4-4 8.4m0-13v8"/></svg>';
+    }
+    if (npVolumeSlider) {
+      npVolumeSlider.value = Math.floor(playerState.volume * 100);
+    }
   }
+
+  // --- Volume slider in now-playing bar ---
+  if (npVolumeSlider) {
+    npVolumeSlider.addEventListener('input', () => {
+      playerState.volume = npVolumeSlider.value / 100;
+      audioElement.volume = playerState.volume;
+      playerState.isMuted = playerState.volume === 0;
+      updateVolumeIconUI();
+      playerVolume.value = npVolumeSlider.value;
+    });
+  }
+
+  // --- Queue panel ---
+  function renderQueue() {
+    if (!npQueueList) return;
+    if (state.tracks.length === 0) {
+      npQueueList.innerHTML = '<div class="np-queue-empty">No tracks in queue</div>';
+      return;
+    }
+    npQueueList.innerHTML = state.tracks.map((t, i) => {
+      const isCurrent = t.id === state.selectedTrackId;
+      const time = t.duration ? formatTime(t.duration) : '--:--';
+      return `<div class="np-queue-item${isCurrent ? ' current' : ''}" data-id="${t.id}">
+        <div class="np-queue-item-info">
+          <div class="np-queue-item-title">${t.title || t.name}</div>
+          <div class="np-queue-item-artist">${t.artist || 'Unknown Artist'}</div>
+        </div>
+        <span class="np-queue-item-time">${time}</span>
+      </div>`;
+    }).join('');
+    npQueueList.querySelectorAll('.np-queue-item').forEach(el => {
+      el.addEventListener('click', () => {
+        selectTrack(el.dataset.id);
+        closeQueue();
+      });
+    });
+  }
+
+  function openQueue() {
+    if (!npQueuePanel) return;
+    renderQueue();
+    npQueuePanel.classList.add('open');
+    btnNpQueue.classList.add('active');
+  }
+
+  function closeQueue() {
+    if (!npQueuePanel) return;
+    npQueuePanel.classList.remove('open');
+    btnNpQueue.classList.remove('active');
+  }
+
+  function toggleQueue() {
+    if (npQueuePanel.classList.contains('open')) {
+      closeQueue();
+    } else {
+      openQueue();
+    }
+  }
+
+  if (btnNpQueue) {
+    btnNpQueue.addEventListener('click', toggleQueue);
+  }
+
+  if (npQueueClose) {
+    npQueueClose.addEventListener('click', closeQueue);
+  }
+
+  if (npInfoClick) {
+    npInfoClick.addEventListener('click', toggleQueue);
+  }
+
+  // Close queue when clicking outside
+  document.addEventListener('click', (e) => {
+    if (npQueuePanel && npQueuePanel.classList.contains('open')) {
+      const isInside = npQueuePanel.contains(e.target) ||
+        btnNpQueue.contains(e.target) ||
+        npInfoClick.contains(e.target);
+      if (!isInside) closeQueue();
+    }
+  });
 
   // Parsed Synced Lyrics LRC format helper
   function parseLRC(lrcText) {
@@ -537,14 +853,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const artist = inputArtist.value.trim();
 
     if (!title || !artist) {
-      alert('Please fill out the Song Title and Artist fields first.');
+      showModal('Missing Fields', 'Please fill out the Song Title and Artist fields first.');
       return;
     }
 
     btnSearchLyrics.disabled = true;
     const origText = btnSearchLyrics.innerHTML;
-    btnSearchLyrics.innerHTML = `<i data-lucide="loader-2" class="spinner" size="10"></i><span>Fetching...</span>`;
-    lucide.createIcons();
+    btnSearchLyrics.innerHTML = `<div class="spinner" style="width:10px;height:10px;border-width:1.5px"></div><span>Fetching...</span>`;
 
     try {
       const lyrics = await fetchLyricsFromLRCLIB(title, artist);
@@ -556,17 +871,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateTrackListItemUI(track);
         updateUI();
-        alert('Lyrics successfully retrieved and loaded!');
+        showModal('Lyrics Found', 'Lyrics successfully retrieved and loaded!');
       } else {
-        alert('No lyrics found for this song in the database.');
+        showModal('No Lyrics', 'No lyrics found for this song in the database.');
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to retrieve lyrics: ' + err.message);
+      showModal('Error', 'Failed to retrieve lyrics: ' + err.message);
     } finally {
       btnSearchLyrics.disabled = false;
       btnSearchLyrics.innerHTML = origText;
-      lucide.createIcons();
     }
   });
 
@@ -589,6 +903,20 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('LRCLIB lyrics fetch error:', err);
     }
     return '';
+  }
+
+  // --- fetchiTunesSuggestions ---
+  async function fetchiTunesSuggestions(query) {
+    if (!query) return [];
+    try {
+      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=6`;
+      const res = await fetch(url);
+      const data = await res.json();
+      return data.results || [];
+    } catch (err) {
+      console.error('iTunes API search error:', err);
+      return [];
+    }
   }
 
   // --- Suggestions Inline Search ---
@@ -640,12 +968,12 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           <div class="suggestion-card-actions">
             <button class="btn-suggestion-action apply-text-only" title="Apply text metadata only, keep current cover art">
-              <i data-lucide="file-text" size="10"></i>
-              <span>Apply Text Only</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <span>Text Only</span>
             </button>
             <button class="btn-suggestion-action apply-cover-only" title="Apply album cover only, keep current text fields">
-              <i data-lucide="image" size="10"></i>
-              <span>Apply Cover Only</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+              <span>Cover Only</span>
             </button>
           </div>
         `;
@@ -662,7 +990,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         suggestionsGrid.appendChild(card);
       });
-      lucide.createIcons();
     } catch (err) {
       console.error(err);
       suggestionsLoading.style.display = 'none';
@@ -781,7 +1108,8 @@ document.addEventListener('DOMContentLoaded', () => {
       coverArt: null,
       status: 'original',
       buffer: null,
-      mp3tag: null
+      mp3tag: null,
+      duration: 0
     };
 
     state.tracks.push(track);
@@ -874,11 +1202,8 @@ document.addEventListener('DOMContentLoaded', () => {
     inspectorContent.style.display = 'block';
 
     // Switch to Player tab on mobile when selecting a track
-    const playerTab = document.querySelector('.nav-tab[data-tab="player"]');
-    if (playerTab && window.innerWidth <= 768) {
-      navTabs.forEach(t => t.classList.remove('active'));
-      playerTab.classList.add('active');
-      document.body.className = 'tab-player';
+    if (window.innerWidth <= 768) {
+      switchMobileTab('player');
     }
 
     inputTitle.value = track.title;
@@ -896,14 +1221,16 @@ document.addEventListener('DOMContentLoaded', () => {
     renderArtworkPreview(track.coverArt);
     loadTrackIntoPlayer(track);
 
-    // Dynamic Ambient Background
-    if (track.coverArt && track.coverArt.url) {
-      blurredBg.style.backgroundImage = `url(${track.coverArt.url})`;
-    } else {
-      blurredBg.style.backgroundImage = 'none';
-    }
+    // Update editor header
+    editorTrackNum.textContent = track.trackNumber ? `${track.trackNumber}/${track.trackTotal || '?'}` : '--';
+    editorTrackName.textContent = track.title || track.name;
 
-    btnSave.innerHTML = `<i data-lucide="save" size="14"></i><span>${track.handle ? 'Save In-Place' : 'Apply Changes'}</span>`;
+    // Update now-playing bar
+    updateNowPlayingBar(track);
+
+    // Dynamic Ambient Background (placeholder for future enhancement)
+
+    btnSave.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg><span>${track.handle ? 'Save In-Place' : 'Apply Changes'}</span>`;
 
     const { artist, title } = parseMessyFilename(track.name);
     let defaultQuery = '';
@@ -921,14 +1248,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Render Artwork Preview ---
   function renderArtworkPreview(coverArt) {
+    const uploadOverlay = `<div class="artwork-overlay"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span>Upload Cover</span></div>`;
+    
     if (coverArt && coverArt.url) {
       artworkFrame.style.backgroundImage = `url(${coverArt.url})`;
-      artworkFrame.innerHTML = `
-        <div class="artwork-frame-overlay">
-          <i data-lucide="upload"></i>
-          <span>Upload Custom Cover</span>
-        </div>
-      `;
+      artworkFrame.innerHTML = uploadOverlay;
       
       const img = new Image();
       img.onload = () => {
@@ -939,16 +1263,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       artworkFrame.style.backgroundImage = 'none';
       artworkFrame.innerHTML = `
-        <i data-lucide="image" size="48"></i>
-        <div class="artwork-frame-overlay">
-          <i data-lucide="upload"></i>
-          <span>Upload Custom Cover</span>
-        </div>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+        ${uploadOverlay}
       `;
       artworkRes.textContent = 'No cover art';
       artworkFormat.textContent = '';
     }
-    lucide.createIcons();
   }
 
   // --- Apply Suggestion to Form ---
@@ -1004,9 +1324,6 @@ document.addEventListener('DOMContentLoaded', () => {
             url: URL.createObjectURL(blob)
           };
           renderArtworkPreview(track.coverArt);
-
-          // Update Dynamic Blurred background
-          blurredBg.style.backgroundImage = `url(${track.coverArt.url})`;
         } catch (err) {
           console.error('Artwork fetch error:', err);
           artworkRes.textContent = 'Failed to load cover.';
@@ -1037,8 +1354,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnSave.disabled = true;
     const originalText = btnSave.innerHTML;
-    btnSave.innerHTML = `<i data-lucide="loader-2" class="spinner" size="14"></i><span>Saving...</span>`;
-    lucide.createIcons();
+    btnSave.innerHTML = `<div class="spinner" style="width:14px;height:14px;border-width:2px"></div><span>Saving...</span>`;
 
     track.title = inputTitle.value.trim();
     track.artist = inputArtist.value.trim();
@@ -1073,11 +1389,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } catch (err) {
       console.error('Failed to save tags:', err);
-      alert('Error updating MP3 tags: ' + err.message);
+      showModal('Save Error', 'Error updating MP3 tags: ' + err.message);
     } finally {
       btnSave.disabled = false;
       btnSave.innerHTML = originalText;
-      lucide.createIcons();
     }
   });
 
@@ -1159,8 +1474,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnMagic.disabled = true;
     const originalText = btnMagic.innerHTML;
-    btnMagic.innerHTML = `<i data-lucide="loader-2" class="spinner" size="14"></i><span>Matching...</span>`;
-    lucide.createIcons();
+    btnMagic.innerHTML = `<div class="spinner" style="width:14px;height:14px;border-width:2px"></div><span>Matching...</span>`;
 
     try {
       await magicAutoTagTrack(track);
@@ -1172,11 +1486,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } catch (err) {
       console.error('Magic Auto-tag error:', err);
-      alert('Magic Auto-Tag failed: ' + err.message);
+      showModal('Auto-Tag Error', 'Magic Auto-Tag failed: ' + err.message);
     } finally {
       btnMagic.disabled = false;
       btnMagic.innerHTML = originalText;
-      lucide.createIcons();
     }
   });
 
@@ -1282,9 +1595,6 @@ document.addEventListener('DOMContentLoaded', () => {
           url: URL.createObjectURL(new Blob([dataBytes], { type: mime }))
         };
         renderArtworkPreview(track.coverArt);
-        
-        // Update Dynamic Blurred background
-        blurredBg.style.backgroundImage = `url(${track.coverArt.url})`;
 
         if (track.status === 'saved') {
           track.status = 'modified';
@@ -1298,12 +1608,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --- Search iTunes Manually ---
-  btnSearchCover.addEventListener('click', () => {
+  btnSearchCover.addEventListener('click', async () => {
     const track = state.tracks.find(t => t.id === state.selectedTrackId);
     if (!track) return;
 
-    const customQuery = prompt('Enter Artist & Song Name to search on iTunes:', `${inputArtist.value} ${inputTitle.value}`.trim());
-    if (customQuery !== null) {
+    const defaultValue = `${inputArtist.value} ${inputTitle.value}`.trim();
+    const customQuery = await showModal('Search iTunes', 'Enter Artist & Song Name to search on iTunes:', { type: 'prompt', defaultValue });
+    if (customQuery) {
       suggestionsSearchInput.value = customQuery;
       triggerSearch(customQuery);
     }
@@ -1318,7 +1629,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       track.coverArt = null;
       renderArtworkPreview(null);
-      blurredBg.style.backgroundImage = 'none';
 
       if (track.status === 'saved') {
         track.status = 'modified';
@@ -1383,8 +1693,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.isProcessing = true;
     btnAutoMatchAll.disabled = true;
     const origText = btnAutoMatchAll.innerHTML;
-    btnAutoMatchAll.innerHTML = `<i data-lucide="loader-2" class="spinner" size="14"></i><span>Auto-matching...</span>`;
-    lucide.createIcons();
+    btnAutoMatchAll.innerHTML = `<div class="spinner" style="width:14px;height:14px;border-width:2px"></div><span>Auto-matching...</span>`;
 
     let matchesCount = 0;
     for (const track of state.tracks) {
@@ -1401,10 +1710,9 @@ document.addEventListener('DOMContentLoaded', () => {
     state.isProcessing = false;
     btnAutoMatchAll.disabled = false;
     btnAutoMatchAll.innerHTML = origText;
-    lucide.createIcons();
     updateUI();
 
-    alert(`Completed Auto-Match! Match status updated for tracks.`);
+    showModal('Auto-Match Complete', 'Auto-Match completed! Check the track status indicators for results.');
   });
 
   // --- Bulk Save All In-Place ---
@@ -1414,8 +1722,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnSaveAll.disabled = true;
     const origText = btnSaveAll.innerHTML;
-    btnSaveAll.innerHTML = `<i data-lucide="loader-2" class="spinner" size="14"></i><span>Saving...</span>`;
-    lucide.createIcons();
+    btnSaveAll.innerHTML = `<div class="spinner" style="width:14px;height:14px;border-width:2px"></div><span>Saving...</span>`;
 
     let inPlaceSaved = 0;
     let downloadsTriggered = 0;
@@ -1441,34 +1748,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnSaveAll.disabled = false;
     btnSaveAll.innerHTML = origText;
-    lucide.createIcons();
     updateUI();
 
     let msg = `Successfully saved all changes!`;
     if (inPlaceSaved > 0) msg += `\n- ${inPlaceSaved} files updated directly in-place.`;
     if (downloadsTriggered > 0) msg += `\n- ${downloadsTriggered} files downloaded manually as backups.`;
-    alert(msg);
+    showModal('Save Complete', msg);
   });
 
   // --- Render Track Item in Sidebar ---
   function renderTrackListItem(track) {
+    const trackIndex = state.tracks.indexOf(track);
     const div = document.createElement('div');
     div.className = 'track-item';
     div.dataset.id = track.id;
     div.id = `track-item-${track.id}`;
 
     div.innerHTML = `
+      <span class="track-item-num">${trackIndex + 1}</span>
       <div class="track-item-artwork" id="track-art-${track.id}">
-        <i data-lucide="music-2" size="18"></i>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
       </div>
       <div class="track-item-info">
         <div class="track-item-title">${escapeHTML(track.name)}</div>
         <div class="track-item-subtitle">Reading metadata...</div>
       </div>
+      <span class="track-item-time">--:--</span>
       <div class="track-item-meta">
         <span class="badge badge-original">Loading</span>
         <button class="track-item-remove" title="Remove track">
-          <i data-lucide="trash" size="12"></i>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
         </button>
       </div>
     `;
@@ -1483,7 +1792,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     trackList.appendChild(div);
-    lucide.createIcons();
   }
 
   // --- Update Track Item Visual State ---
@@ -1491,22 +1799,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const div = document.getElementById(`track-item-${track.id}`);
     if (!div) return;
 
+    const trackIndex = state.tracks.indexOf(track);
     const artContainer = document.getElementById(`track-art-${track.id}`);
     const titleContainer = div.querySelector('.track-item-title');
     const subtitleContainer = div.querySelector('.track-item-subtitle');
     const badgeContainer = div.querySelector('.badge');
+    const timeContainer = div.querySelector('.track-item-time');
+    const numContainer = div.querySelector('.track-item-num');
 
     const isPlayingThisTrack = track.id === state.selectedTrackId && playerState.isPlaying;
+
+    // Track number
+    if (numContainer) {
+      numContainer.textContent = trackIndex >= 0 ? trackIndex + 1 : '';
+    }
 
     if (track.coverArt && track.coverArt.url) {
       artContainer.style.backgroundImage = `url(${track.coverArt.url})`;
       artContainer.innerHTML = '';
     } else {
       artContainer.style.backgroundImage = 'none';
-      artContainer.innerHTML = `<i data-lucide="music-2" size="18"></i>`;
+      artContainer.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
     }
 
-    // Display title & inline equalizer if active
+    // Title & inline equalizer
     titleContainer.innerHTML = `${escapeHTML(track.title || track.name)}${isPlayingThisTrack ? `
       <div class="equalizer-bars" style="display: inline-flex; vertical-align: middle;">
         <span class="bar"></span>
@@ -1517,6 +1833,15 @@ document.addEventListener('DOMContentLoaded', () => {
     ` : ''}`;
 
     subtitleContainer.textContent = track.artist || 'Unknown Artist';
+
+    // Time display from duration if available
+    if (timeContainer) {
+      if (track.duration) {
+        timeContainer.textContent = formatTime(track.duration);
+      } else {
+        timeContainer.textContent = '--:--';
+      }
+    }
 
     badgeContainer.className = 'badge';
     if (track.status === 'original') {
@@ -1533,7 +1858,6 @@ document.addEventListener('DOMContentLoaded', () => {
       badgeContainer.textContent = track.handle ? 'Saved' : 'Modified';
     }
 
-    lucide.createIcons();
   }
 
   // --- Remove Track ---
@@ -1564,7 +1888,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.selectedTrackId = null;
       inspectorContent.style.display = 'none';
       inspectorEmpty.style.display = 'flex';
-      blurredBg.style.backgroundImage = 'none';
+      updateNowPlayingBar(null);
     }
 
     updateUI();
@@ -1586,6 +1910,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnAutoMatchAll.disabled = state.tracks.length === 0 || originalCount === 0 || state.isProcessing;
     btnSaveAll.disabled = state.tracks.length === 0 || modifiedCount === 0;
+
+    // Refresh track numbers in case of reorder
+    state.tracks.forEach((track, index) => {
+      const numEl = document.querySelector(`#track-item-${track.id} .track-item-num`);
+      if (numEl) numEl.textContent = index + 1;
+    });
   }
 
   // --- Utility Functions ---

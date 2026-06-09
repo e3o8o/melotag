@@ -9,331 +9,380 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MeloTag">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+  <meta name="theme-color" content="#F5C518">
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+          .then(reg => console.log('Service Worker registered:', reg.scope))
           .catch(err => console.error('Service Worker registration failed:', err));
       });
     }
   </script>
 </head>
 <body>
-  <div class="app-container">
-    <!-- Header -->
-    <header>
-      <div class="logo">
-        <div class="logo-icon">
-          <i data-lucide="music-4"></i>
-        </div>
-        <span class="logo-text">MeloTag</span>
-      </div>
-      <div class="header-actions">
-        <button id="btn-auto-match-all" class="btn btn-secondary btn-sm" disabled>
-          <i data-lucide="sparkles"></i>
-          <span>Auto-Match All</span>
-        </button>
-        <button id="btn-save-all" class="btn btn-primary btn-sm" disabled>
-          <i data-lucide="save"></i>
-          <span>Save All In-Place</span>
-        </button>
-        <button id="btn-reset" class="btn btn-danger btn-sm btn-icon-only" title="Clear All Tracks">
-          <i data-lucide="trash-2"></i>
-        </button>
-      </div>
-    </header>
+  <!-- Mobile Status Bar -->
+  <div class="mobile-status-bar" id="mobile-status-bar">
+    <span class="mobile-status-time" id="mobile-status-time">9:41</span>
+    <div class="mobile-status-icons">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 9l4 4-4 4"/><path d="M7 17l4-4-4-4"/><rect x="11" y="14" width="8" height="7" rx="1" transform="rotate(90 15 17.5)"/></svg>
+    </div>
+  </div>
 
-    <!-- Dashboard -->
-    <div class="dashboard">
-      
-      <!-- Sidebar / Track List -->
-      <aside class="sidebar">
-        <!-- Drop Zone -->
-        <div id="drop-zone" class="drop-zone">
-          <div class="drop-zone-icon">
-            <i data-lucide="upload-cloud" size="32"></i>
+  <div class="app">
+    <!-- Mobile Header -->
+    <div class="mobile-header" id="mobile-header">
+      <button class="mobile-back-btn" id="mobile-back-btn" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+      </button>
+      <span class="mobile-header-title" id="mobile-header-title">MeloTag</span>
+      <div style="width:32px"></div>
+    </div>
+
+    <div class="app-body">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9.5V20l12-8L7 4"/></svg>
           </div>
-          <p>Drag & drop MP3 files here</p>
-          <span>or select below</span>
-          <input type="file" id="file-input" multiple accept="audio/mp3,audio/mpeg" style="display: none;">
+          <span class="logo-text">MeloTag</span>
         </div>
-
-        <div class="picker-bar" style="padding: 0 16px; margin-bottom: 16px; display: flex; gap: 8px;">
-          <button id="btn-open-files" class="btn btn-secondary btn-sm" style="flex: 1;" title="Open files for in-place editing">
-            <i data-lucide="file-audio" size="14"></i>
-            <span>Select Files</span>
+        <div class="header-actions">
+          <button id="btn-auto-match-all" class="btn btn-ghost btn-sm" disabled title="Auto-Match All">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="m15.5 19.5-3.238-2.748L5.647 21l2.647-6.876L3 9.861h6.882L11.974 3l2.214 6.861L21 9.876l-4.765 4.248L18.882 21"/></svg>
+            <span>Auto-Match</span>
           </button>
-          <button id="btn-open-folder" class="btn btn-secondary btn-sm" style="flex: 1;" title="Open a whole folder for in-place editing">
-            <i data-lucide="folder-open" size="14"></i>
-            <span>Select Folder</span>
+          <button id="btn-save-all" class="btn btn-amber btn-sm" disabled title="Save All In-Place">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M21 15v1.2c0 1.68 0 2.52-.327 3.162a3 3 0 0 1-1.311 1.311C18.72 21 17.88 21 16.2 21H7.8c-1.68 0-2.52 0-3.162-.327a3 3 0 0 1-1.311-1.311C3 18.72 3 17.88 3 16.2V15m14-5-5 5m0 0-5-5m5 5V3"/></svg>
+            <span>Save All</span>
           </button>
         </div>
+      </div>
 
-        <!-- Sidebar Search Bar -->
-        <div style="padding: 0 16px; margin-bottom: 12px;">
-          <div style="position: relative; width: 100%;">
-            <input type="text" id="library-search-input" placeholder="Search track library..." style="width: 100%; padding: 8px 12px 8px 32px; font-size: 12px; background: rgba(22,25,38,0.4); border-radius: 8px; border: 1px solid var(--border-color); color: white;">
-            <i data-lucide="search" size="12" style="position: absolute; left: 10px; top: 10px; color: var(--text-muted);"></i>
-          </div>
-        </div>
+      <!-- Drop Zone -->
+      <div id="drop-zone" class="drop-zone">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+        <p>Drag & drop MP3 files</p>
+        <span>or select below</span>
+        <input type="file" id="file-input" multiple accept="audio/mp3,audio/mpeg" style="display: none;">
+      </div>
 
-        <!-- Track List container -->
+      <!-- File Picker Buttons -->
+      <div class="picker-bar">
+        <button id="btn-open-files" class="btn btn-outline btn-sm" title="Open files for in-place editing">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+          <span>Files</span>
+        </button>
+        <button id="btn-open-folder" class="btn btn-outline btn-sm" title="Open a whole folder for in-place editing">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="m13 7-1.116-2.231c-.32-.642-.481-.963-.72-1.198a2 2 0 0 0-.748-.462C10.1 3 9.74 3 9.022 3H5.2c-1.12 0-1.68 0-2.108.218a2 2 0 0 0-.874.874C2 4.52 2 5.08 2 6.2V7m0 0h15.2c1.68 0 2.52 0 3.162.327a3 3 0 0 1 1.311 1.311C22 9.28 22 10.12 22 11.8v4.4c0 1.68 0 2.52-.327 3.162a3 3 0 0 1-1.311 1.311C19.72 21 18.68 21 17 21M2 7v9.2c0 1.68 0 2.52.327 3.162a3 3 0 0 0 1.311 1.311C4.28 21 5.12 21 6.8 21H13"/></svg>
+          <span>Folder</span>
+        </button>
+      </div>
+
+      <!-- Search -->
+      <div class="search-wrap">
+        <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+        <input type="text" id="library-search-input" class="search-input" placeholder="Search library...">
+      </div>
+
+      <!-- Track List -->
         <div class="track-list-container">
           <div class="track-list-header">
-            <span>Loaded Tracks (<span id="tracks-count">0</span>)</span>
-            <span id="tracks-status-summary"></span>
+            <span>TRACKS (<span id="tracks-count">0</span>)</span>
+            <span id="tracks-status-summary" class="track-list-status"></span>
           </div>
-          <div id="track-list" class="track-list">
-            <!-- Dynamically populated -->
+          <div class="track-column-headers">
+            <span class="track-col-num">#</span>
+            <span class="track-col-title">Title</span>
+            <span class="track-col-time">Time</span>
+          </div>
+          <div id="track-list" class="track-list"></div>
+        </div>
+    </aside>
+
+    <!-- Main Area -->
+    <main id="main-area" class="main-area">
+      <!-- Empty State -->
+      <div id="inspector-empty" class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9.5V20l12-8L7 4"/></svg>
+        </div>
+        <h3>No Track Selected</h3>
+        <p>Add MP3 files using the sidebar and select a track to begin tagging.</p>
+      </div>
+
+      <!-- Inspector Content -->
+      <div id="inspector-content" class="inspector-content" style="display: none;">
+        <!-- Editor Header -->
+        <div class="editor-header">
+          <div class="editor-header-left">
+            <span class="editor-track-num" id="editor-track-num">--</span>
+            <span class="editor-track-name" id="editor-track-name">Select a track</span>
           </div>
         </div>
-      </aside>
 
-      <main id="inspector" class="inspector">
-        <!-- Blurred Dynamic Background -->
-        <div id="blurred-bg" class="blurred-bg"></div>
-
-        <!-- Empty State -->
-        <div id="inspector-empty" class="empty-state">
-          <div class="empty-state-icon">
-            <i data-lucide="music" size="32"></i>
-          </div>
-          <h3>No Track Selected</h3>
-          <p>Add some MP3 files using the sidebar upload zone and select a track to begin tagging.</p>
-        </div>
-
-        <!-- Inspector Content -->
-        <div id="inspector-content" class="inspector-content" style="display: none;">
-          
-          <!-- Audio Player Card -->
-          <div class="audio-player-card">
-            
-            <!-- Seek Progress slider and times -->
-            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
-              <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 500; color: var(--text-secondary); font-family: 'Outfit';">
-                <span id="player-current-time">0:00</span>
-                <span id="player-track-info" style="color: var(--text-primary); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 70%; font-weight: 600;">Select a track to play</span>
-                <span id="player-total-time">0:00</span>
+        <!-- Three-Column Layout -->
+        <div class="inspector-columns">
+          <!-- Column 1: Cover Art -->
+          <div class="inspector-column col-artwork">
+            <div id="artwork-frame" class="artwork-frame">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M3.28 18.97C3.64 19.58 4.3 20 5.06 20h13.87c1.14 0 2.07-.92 2.07-2.07V13l-5-3-5 5-4-2-4 3V6.07C3 4.93 3.92 4 5.07 4h13.87c1.14 0 2.07.92 2.07 2.07v3.45M9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/></svg>
+              <div class="artwork-overlay">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                <span>Upload Cover</span>
               </div>
-              <input type="range" id="player-seek" min="0" max="100" value="0" style="width: 100%; height: 4px; border-radius: 2px; background: rgba(0, 0, 0, 0.1); outline: none; cursor: pointer; accent-color: var(--primary); transition: background-color 150ms;">
+              <input type="file" id="artwork-input" accept="image/jpeg,image/png" style="display: none;">
             </div>
-
-            <!-- Web Audio Visualizer Canvas -->
-            <canvas id="player-visualizer" style="width: 100%; height: 32px; border-radius: 6px; background: var(--surface-code, #1c1c1e); display: block;"></canvas>
-
-            <!-- Player Controls & Volume Group -->
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; flex-wrap: wrap;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <button id="btn-player-shuffle" class="btn btn-secondary btn-icon-only btn-sm" style="border-radius: 8px; width: 32px; height: 32px;" title="Shuffle Playback">
-                  <i data-lucide="shuffle" size="14"></i>
-                </button>
-                <button id="btn-player-prev" class="btn btn-secondary btn-icon-only btn-sm" style="border-radius: 8px; width: 32px; height: 32px;" title="Previous Song">
-                  <i data-lucide="skip-back" size="14"></i>
-                </button>
-                <button id="player-play-btn" class="btn btn-primary btn-icon-only" style="border-radius: 8px; width: 44px; height: 44px; border: none; cursor: pointer;" title="Play / Pause">
-                  <i id="player-play-icon" data-lucide="play" size="18" style="margin-left: 2px;"></i>
-                </button>
-                <button id="btn-player-next" class="btn btn-secondary btn-icon-only btn-sm" style="border-radius: 8px; width: 32px; height: 32px;" title="Next Song">
-                  <i data-lucide="skip-forward" size="14"></i>
-                </button>
-                <button id="btn-player-repeat" class="btn btn-secondary btn-icon-only btn-sm" style="border-radius: 8px; width: 32px; height: 32px;" title="Repeat Mode">
-                  <i data-lucide="repeat" size="14"></i>
-                </button>
-              </div>
-              
-              <!-- Volume slider -->
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <i data-lucide="volume-2" size="14" style="color: var(--text-secondary); cursor: pointer;" id="player-volume-icon"></i>
-                <input type="range" id="player-volume" min="0" max="100" value="80" style="width: 70px; height: 3px; border-radius: 2px; background: rgba(0, 0, 0, 0.1); outline: none; cursor: pointer; accent-color: var(--primary);">
-              </div>
+            <div class="artwork-info">
+              <span id="artwork-res" class="artwork-res">No cover art</span>
+              <span id="artwork-format" class="artwork-format"></span>
             </div>
-            
-            <!-- Synced LRC Lyrics container -->
-            <div id="player-lyrics-container" class="synced-lyrics-container" style="display: none; max-height: 90px; overflow-y: hidden; text-align: center; font-size: 13px; font-weight: 500; line-height: 1.6; margin-top: 6px; padding: 6px; border-top: 1px solid #e6d5a8; color: var(--text-secondary);">
-              <!-- Synced lyrics will scroll here -->
+            <div class="artwork-actions">
+              <button id="btn-search-cover" class="btn btn-outline btn-sm" style="flex:1">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                <span>Search iTunes</span>
+              </button>
+              <button id="btn-remove-cover" class="btn btn-outline btn-sm" title="Remove Cover Art" style="padding:0;width:32px;height:32px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 19.5l15-15m-15 0l15 15"/></svg>
+              </button>
             </div>
-
-            <audio id="audio-element" style="display: none;"></audio>
           </div>
 
-          <div class="inspector-grid">
-            
-            <!-- Column 1: Artwork -->
-            <div class="artwork-panel">
-              <div id="artwork-frame" class="artwork-frame">
-                <i data-lucide="image" size="48"></i>
-                <div class="artwork-frame-overlay">
-                  <i data-lucide="upload"></i>
-                  <span>Upload Custom Cover</span>
-                </div>
-                <input type="file" id="artwork-input" accept="image/jpeg,image/png" style="display: none;">
-              </div>
-              <div class="artwork-info">
-                <div id="artwork-res" class="artwork-res">No cover art</div>
-                <div id="artwork-format" class="artwork-format"></div>
-              </div>
-              <div class="artwork-actions">
-                <button id="btn-search-cover" class="btn btn-secondary btn-sm" style="flex: 1;">
-                  <i data-lucide="search"></i>
-                  <span>Search iTunes</span>
-                </button>
-                <button id="btn-remove-cover" class="btn btn-danger btn-sm btn-icon-only" title="Remove Cover Art">
-                  <i data-lucide="x"></i>
-                </button>
-              </div>
-            </div>
-
-            <!-- Column 2: Metadata Form -->
+          <!-- Column 2: Metadata Form + Lyrics -->
+          <div class="inspector-column col-form">
             <div class="form-panel">
               <div class="form-row">
                 <div class="form-group">
-                  <label for="input-title">Title</label>
+                  <label for="input-title">TITLE</label>
                   <input type="text" id="input-title" placeholder="Song title">
                 </div>
                 <div class="form-group">
-                  <label for="input-artist">Artist</label>
+                  <label for="input-artist">ARTIST</label>
                   <input type="text" id="input-artist" placeholder="Artist name">
                 </div>
               </div>
-
               <div class="form-row">
                 <div class="form-group">
-                  <label for="input-album">Album</label>
+                  <label for="input-album">ALBUM</label>
                   <input type="text" id="input-album" placeholder="Album name">
                 </div>
                 <div class="form-group">
-                  <label for="input-album-artist">Album Artist</label>
+                  <label for="input-album-artist">ALBUM ARTIST</label>
                   <input type="text" id="input-album-artist" placeholder="Album artist (optional)">
                 </div>
               </div>
-
               <div class="form-row">
                 <div class="form-group">
-                  <label for="input-genre">Genre</label>
-                  <input type="text" id="input-genre" placeholder="e.g. Pop, Rock, Electronic">
+                  <label for="input-genre">GENRE</label>
+                  <input type="text" id="input-genre" placeholder="e.g. Pop, Rock">
                 </div>
                 <div class="form-group">
-                  <label for="input-year">Year</label>
+                  <label for="input-year">YEAR</label>
                   <input type="number" id="input-year" placeholder="YYYY" min="1800" max="2100">
                 </div>
               </div>
-
               <div class="form-row">
                 <div class="form-group">
-                  <label for="input-track">Track Number</label>
-                  <div style="display: flex; gap: 8px; align-items: center;">
-                    <input type="text" id="input-track" placeholder="e.g. 1" style="flex: 1;">
-                    <span style="color: var(--text-muted);">/</span>
-                    <input type="text" id="input-track-total" placeholder="Total" style="flex: 1;">
+                  <label for="input-track">TRACK</label>
+                  <div class="form-split">
+                    <input type="text" id="input-track" placeholder="1">
+                    <span class="form-divider">/</span>
+                    <input type="text" id="input-track-total" placeholder="Total">
                   </div>
                 </div>
                 <div class="form-group">
-                  <label for="input-disc">Disc Number</label>
-                  <div style="display: flex; gap: 8px; align-items: center;">
-                    <input type="text" id="input-disc" placeholder="e.g. 1" style="flex: 1;">
-                    <span style="color: var(--text-muted);">/</span>
-                    <input type="text" id="input-disc-total" placeholder="Total" style="flex: 1;">
+                  <label for="input-disc">DISC</label>
+                  <div class="form-split">
+                    <input type="text" id="input-disc" placeholder="1">
+                    <span class="form-divider">/</span>
+                    <input type="text" id="input-disc-total" placeholder="Total">
                   </div>
                 </div>
               </div>
-
               <div class="form-group form-group-full">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-                  <label for="input-lyrics">Lyrics</label>
-                  <button id="btn-search-lyrics" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 10px; height: auto;" title="Search and fetch lyrics from LRCLIB database">
-                    <i data-lucide="music-3" size="10"></i>
+                <div class="form-row-header">
+                  <label for="input-lyrics">LYRICS</label>
+                  <button id="btn-search-lyrics" class="btn btn-outline btn-xs" title="Fetch lyrics from LRCLIB">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9.5V20l12-8L7 4"/></svg>
                     <span>Fetch from LRCLIB</span>
                   </button>
                 </div>
-                <textarea id="input-lyrics" placeholder="Paste lyrics here..."></textarea>
-              </div>
-
-              <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; flex-wrap: wrap;">
-                <button id="btn-magic" class="btn btn-primary" title="Magic Auto-Match & Save In-Place">
-                  <i data-lucide="wand-2" size="14"></i>
-                  <span>Magic Auto-Tag</span>
-                </button>
-                <button id="btn-save" class="btn btn-secondary">
-                  <i data-lucide="save" size="14"></i>
-                  <span id="save-btn-text">Save In-Place</span>
-                </button>
-                <button id="btn-download" class="btn btn-secondary">
-                  <i data-lucide="download" size="14"></i>
-                  <span>Download Copy</span>
-                </button>
+                <textarea id="input-lyrics" placeholder="Paste lyrics here..." rows="4"></textarea>
               </div>
             </div>
-
           </div>
 
-          <!-- iTunes Suggestions Panel -->
-          <div class="suggestions-section">
-            <h4 id="suggestions-header" style="margin-bottom: 12px;">
-              <i data-lucide="sparkles" size="16"></i>
-              <span>iTunes Matching Suggestions</span>
-            </h4>
-            
-            <!-- Inline Search Query Box -->
-            <div style="display: flex; gap: 8px; margin-bottom: 20px; width: 100%;">
-              <input type="text" id="suggestions-search-input" placeholder="Search iTunes for other matches..." style="flex: 1; padding: 10px 14px; font-size: 13px;">
-              <button id="btn-suggestions-search" class="btn btn-secondary" style="padding: 10px 18px;">
-                <i data-lucide="search" size="14"></i>
-                <span>Search</span>
+          <!-- Column 3: Actions + Suggestions + Synced Lyrics -->
+          <div class="inspector-column col-suggestions">
+            <div class="action-row">
+              <button id="btn-magic" class="btn btn-amber" title="Magic Auto-Match & Save In-Place" style="flex:1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="m15.5 19.5-3.238-2.748L5.647 21l2.647-6.876L3 9.861h6.882L11.974 3l2.214 6.861L21 9.876l-4.765 4.248L18.882 21"/></svg>
+                <span>Magic</span>
+              </button>
+              <button id="btn-save" class="btn btn-outline" style="flex:1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M21 15v1.2c0 1.68 0 2.52-.327 3.162a3 3 0 0 1-1.311 1.311C18.72 21 17.88 21 16.2 21H7.8c-1.68 0-2.52 0-3.162-.327a3 3 0 0 1-1.311-1.311C3 18.72 3 17.88 3 16.2V15m14-5-5 5m0 0-5-5m5 5V3"/></svg>
+                <span>Save</span>
+              </button>
+              <button id="btn-download" class="btn btn-outline" style="flex:1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M21 15v1.2c0 1.68 0 2.52-.327 3.162a3 3 0 0 1-1.311 1.311C18.72 21 17.88 21 16.2 21H7.8c-1.68 0-2.52 0-3.162-.327a3 3 0 0 1-1.311-1.311C3 18.72 3 17.88 3 16.2V15m14-5-5 5m0 0-5-5m5 5V3"/></svg>
+                <span>Download</span>
               </button>
             </div>
-            <div id="suggestions-loading" class="loading-container" style="display: none;">
-              <i data-lucide="loader-2" class="spinner" size="24"></i>
-              <span>Searching iTunes...</span>
-            </div>
-            <div id="suggestions-empty" style="color: var(--text-muted); font-size: 13px; display: none;">
-              No matches found on iTunes. Try adjusting the title/artist in the form above and clicking Search again.
-            </div>
-            <div id="suggestions-grid" class="suggestions-grid">
-              <!-- Dynamically populated suggestion-cards -->
+            <div class="suggestions-section">
+              <div class="suggestions-header">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="m15.5 19.5-3.238-2.748L5.647 21l2.647-6.876L3 9.861h6.882L11.974 3l2.214 6.861L21 9.876l-4.765 4.248L18.882 21"/></svg>
+                <span>iTunes Matching Suggestions</span>
+              </div>
+              <div class="suggestions-search-row">
+                <input type="text" id="suggestions-search-input" class="search-input" placeholder="Search iTunes for other matches...">
+                <button id="btn-suggestions-search" class="btn btn-outline btn-sm">Search</button>
+              </div>
+              <div id="suggestions-loading" class="loading-state" style="display:none">
+                <div class="spinner"></div>
+                <span>Searching iTunes...</span>
+              </div>
+              <div id="suggestions-empty" class="empty-msg" style="display:none">
+                No matches found. Try adjusting the title/artist above.
+              </div>
+              <div id="suggestions-grid" class="suggestions-grid"></div>
+              <!-- Synced Lyrics during playback -->
+              <div id="player-lyrics-container" class="synced-lyrics-container"></div>
             </div>
           </div>
-
         </div>
-      </main>
+      </div>
+    </main>
+    </div><!-- /.app-body -->
 
+    <!-- Now Playing Bar (Spotify-style) -->
+    <div class="now-playing-bar" id="now-playing-bar" style="display:none">
+      <div class="np-seek-wrap">
+        <input type="range" class="np-seek" id="np-seek" min="0" max="100" value="0">
+      </div>
+      <div class="np-main-row">
+        <div class="np-left">
+          <div class="np-artwork" id="np-artwork">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9.5V20l12-8L7 4"/></svg>
+          </div>
+          <div class="np-info" id="np-info-click">
+            <div class="np-title" id="np-title">No track selected</div>
+            <div class="np-artist" id="np-artist"></div>
+          </div>
+        </div>
+        <div class="np-center">
+          <button class="btn btn-control btn-control-xs" id="btn-np-shuffle" title="Shuffle">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8H4m0 0 3 3M4 8l3-3M6 16h14m0 0-3-3m3 3-3 3"/></svg>
+          </button>
+          <button class="btn btn-control btn-control-xs" id="btn-np-prev" title="Previous">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+          </button>
+          <button class="np-play-btn" id="np-play-btn" title="Play / Pause">
+            <svg id="np-play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+          </button>
+          <button class="btn btn-control btn-control-xs" id="btn-np-next" title="Next">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.25 4.5 15.75 12l-7.5 7.5"/></svg>
+          </button>
+          <button class="btn btn-control btn-control-xs" id="btn-np-repeat" title="Repeat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12c0-1.232.046-2.453.138-3.662a4.006 4.006 0 0 1 3.7-3.7 48.678 48.678 0 0 1 7.324 0 4.006 4.006 0 0 1 3.7 3.7c.017.22.032.441.046.662M4.5 12l-3-3m3 3 3-3m12 3c0 1.232-.046 2.453-.138 3.662a4.006 4.006 0 0 1-3.7 3.7 48.657 48.657 0 0 1-7.324 0 4.006 4.006 0 0 1-3.7-3.7c-.017-.22-.032-.441-.046-.662M19.5 12l-3 3m3-3 3 3"/></svg>
+          </button>
+        </div>
+        <div class="np-right">
+          <div class="now-playing-visualizer">
+            <canvas id="player-visualizer"></canvas>
+          </div>
+          <div class="np-volume-wrap">
+            <button class="btn btn-control btn-control-xs" id="btn-np-volume" title="Volume">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/></svg>
+            </button>
+            <input type="range" class="np-volume-slider" id="np-volume-slider" min="0" max="100" value="80">
+          </div>
+          <button class="btn-queue" id="btn-np-queue" title="Queue">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Queue Panel -->
+      <div class="np-queue-panel" id="np-queue-panel">
+        <div class="np-queue-header">
+          <span>Play Queue</span>
+          <button class="np-queue-close" id="np-queue-close">&times;</button>
+        </div>
+        <div class="np-queue-list" id="np-queue-list"></div>
+      </div>
     </div>
 
-    <!-- Success Checkmark Overlay -->
-    <div id="success-overlay" class="success-overlay">
-      <svg class="success-checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
-        <circle cx="26" cy="26" r="25" />
-        <path d="M14.1 27.2l7.1 7.2 16.7-16.8" />
-      </svg>
-      <h3 style="margin-top: 16px; font-family: 'Outfit';">Changes Saved!</h3>
-      <p style="color: var(--text-secondary); font-size: 13px; margin-top: 4px;">File updated and ready for download.</p>
+    <audio id="audio-element" style="display:none"></audio>
+
+    <!-- Hidden old player elements (app.js references these IDs) -->
+    <div style="display:none">
+      <button id="player-play-btn"></button>
+      <button id="btn-player-prev"></button>
+      <button id="btn-player-next"></button>
+      <button id="btn-player-shuffle"></button>
+      <button id="btn-player-repeat"></button>
+      <input id="player-volume">
+      <button id="player-volume-icon"><span id="volume-svg"></span></button>
+      <span id="player-current-time">0:00</span>
+      <span id="player-total-time">0:00</span>
+      <span id="player-track-info"></span>
+      <input id="player-seek">
+      <span id="player-play-icon"></span>
     </div>
-
-    <!-- Sunset Stripe -->
-    <div class="sunset-stripe"></div>
-
-    <!-- Bottom Mobile Nav -->
-    <nav class="mobile-nav">
-      <button class="nav-tab active" data-tab="library">
-        <i data-lucide="library" size="18"></i>
-        <span>Library</span>
-      </button>
-      <button class="nav-tab" data-tab="player">
-        <i data-lucide="music" size="18"></i>
-        <span>Player</span>
-      </button>
-      <button class="nav-tab" data-tab="editor">
-        <i data-lucide="edit-3" size="18"></i>
-        <span>Editor</span>
-      </button>
-    </nav>
-
   </div>
 
-  <!-- CDN scripts -->
+  <!-- Success Checkmark Overlay -->
+  <div id="success-overlay" class="success-overlay">
+    <svg class="success-checkmark" viewBox="0 0 52 52">
+      <circle cx="26" cy="26" r="25" fill="none"/>
+      <path fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+    </svg>
+    <h3>Changes Saved!</h3>
+    <p>File updated and ready for download.</p>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal-overlay" class="modal-overlay" style="display:none">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-title">MeloTag</span>
+        <button class="modal-close-btn" id="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="modal-message"></p>
+        <div id="modal-input-wrap" class="modal-input-wrap" style="display:none">
+          <input type="text" id="modal-input" class="modal-input" placeholder="Type here...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline btn-sm" id="modal-cancel-btn" style="display:none">Cancel</button>
+        <button class="btn btn-amber btn-sm" id="modal-ok-btn">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Nav -->
+  <nav class="mobile-nav">
+    <button class="nav-tab active" data-tab="library">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6.878V6a2.25 2.25 0 012.25-2.25h7.5A2.25 2.25 0 0118 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 004.5 9v.878m13.5-3A2.25 2.25 0 0119.5 9v.878m0 0a2.246 2.246 0 00-.75-.128H5.25c-.263 0-.515.045-.75.128m15 0A2.25 2.25 0 0121 12v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6c0-.98.626-1.813 1.5-2.122"/></svg>
+      <span>Library</span>
+    </button>
+    <button class="nav-tab" data-tab="player">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9.5V20l12-8L7 4"/></svg>
+      <span>Player</span>
+    </button>
+    <button class="nav-tab" data-tab="editor">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125"/></svg>
+      <span>Editor</span>
+    </button>
+  </nav>
+
+  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/mp3tag.js@3.7.1/dist/mp3tag.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
   <script src="app.js"></script>
 </body>
 </html>
