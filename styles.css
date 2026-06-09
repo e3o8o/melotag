@@ -795,12 +795,6 @@ body {
   background: var(--chrome);
   cursor: pointer;
   transition: transform 120ms ease-out;
-  opacity: 0;
-}
-
-.np-seek:hover::-webkit-slider-thumb,
-.np-seek:active::-webkit-slider-thumb {
-  opacity: 1;
 }
 
 /* Main content row */
@@ -935,17 +929,12 @@ body {
 .np-volume-slider {
   -webkit-appearance: none;
   appearance: none;
-  width: 0;
+  width: 80px;
   height: 4px;
   border-radius: 2px;
   background: var(--border);
   outline: none;
   cursor: pointer;
-  transition: width 200ms ease;
-}
-
-.np-volume-wrap:hover .np-volume-slider {
-  width: 80px;
 }
 
 .np-volume-slider::-webkit-slider-thumb {
