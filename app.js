@@ -1351,9 +1351,9 @@ document.addEventListener('DOMContentLoaded', () => {
     inspectorEmpty.style.display = 'none';
     inspectorContent.style.display = 'block';
 
-    // Switch to Player tab on mobile when selecting a track
+    // Switch to Editor tab on mobile when selecting a track
     if (window.innerWidth <= 768) {
-      switchMobileTab('player');
+      switchMobileTab('editor');
     }
 
     inputTitle.value = track.title;
