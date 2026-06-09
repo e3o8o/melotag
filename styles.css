@@ -1894,6 +1894,7 @@ textarea:focus {
   flex: 1;
   padding: 32px 24px;
   gap: 20px;
+  overflow-y: auto;
 }
 
 .pv-artwork {
@@ -2123,8 +2124,8 @@ textarea:focus {
   }
 
   .pv-artwork {
-    width: 180px;
-    height: 180px;
+    width: min(180px, 40vw);
+    height: min(180px, 40vw);
   }
 
   .pv-controls {
@@ -2137,6 +2138,19 @@ textarea:focus {
 
   .pv-volume-row {
     max-width: 160px;
+  }
+
+  .player-view {
+    padding: 20px 16px;
+    gap: 14px;
+  }
+
+  .pv-title {
+    font-size: 15px;
+  }
+
+  .pv-artist {
+    font-size: 12px;
   }
 
   /* Hide mobile chrome that duplicates real device UI */
@@ -2189,5 +2203,33 @@ textarea:focus {
 
   .mobile-nav {
     display: flex;
+  }
+}
+
+@media (max-width: 768px) and (max-height: 700px) {
+  .player-view {
+    padding: 12px 12px;
+    gap: 10px;
+  }
+
+  .pv-artwork {
+    width: min(130px, 35vw);
+    height: min(130px, 35vw);
+  }
+
+  .pv-title {
+    font-size: 14px;
+  }
+
+  .pv-controls {
+    gap: 10px;
+  }
+
+  .pv-volume-row {
+    max-width: 130px;
+  }
+
+  .pv-lyrics {
+    max-height: 60px;
   }
 }

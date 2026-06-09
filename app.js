@@ -1053,15 +1053,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- fetchiTunesSuggestions ---
   async function fetchiTunesSuggestions(query) {
-    if (!query) return [];
+    if (!query) return { results: [], error: null };
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
       const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=6`;
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) {
+        return { results: [], error: `iTunes API returned ${res.status}` };
+      }
       const data = await res.json();
-      return data.results || [];
+      return { results: data.results || [], error: null };
     } catch (err) {
       console.error('iTunes API search error:', err);
-      return [];
+      if (err.name === 'AbortError') {
+        return { results: [], error: 'Request timed out. Check your connection.' };
+      }
+      return { results: [], error: 'Network error — couldn\'t reach iTunes.' };
     }
   }
 
@@ -1088,8 +1097,14 @@ document.addEventListener('DOMContentLoaded', () => {
     suggestionsLoading.style.display = 'flex';
 
     try {
-      const results = await fetchiTunesSuggestions(query);
+      const { results, error } = await fetchiTunesSuggestions(query);
       suggestionsLoading.style.display = 'none';
+
+      if (error) {
+        suggestionsEmpty.textContent = error;
+        suggestionsEmpty.style.display = 'block';
+        return;
+      }
 
       if (results.length === 0) {
         suggestionsEmpty.style.display = 'block';
@@ -1653,7 +1668,10 @@ document.addEventListener('DOMContentLoaded', () => {
       query = artist || title || track.name.replace(/\.[^/.]+$/, "");
     }
 
-    const results = await fetchiTunesSuggestions(query);
+    const { results, error } = await fetchiTunesSuggestions(query);
+    if (error) {
+      throw new Error(error);
+    }
     if (results.length === 0) {
       throw new Error('Could not find matches for "' + query + '" on iTunes.');
     }
