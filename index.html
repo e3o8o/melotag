@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>MeloTag — Client-Side Music Player & Tag Editor</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MeloTag">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+          .catch(err => console.error('Service Worker registration failed:', err));
+      });
+    }
+  </script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header>
+      <div class="logo">
+        <div class="logo-icon">
+          <i data-lucide="music-4"></i>
+        </div>
+        <span class="logo-text">MeloTag</span>
+      </div>
+      <div class="header-actions">
+        <button id="btn-auto-match-all" class="btn btn-secondary btn-sm" disabled>
+          <i data-lucide="sparkles"></i>
+          <span>Auto-Match All</span>
+        </button>
+        <button id="btn-save-all" class="btn btn-primary btn-sm" disabled>
+          <i data-lucide="save"></i>
+          <span>Save All In-Place</span>
+        </button>
+        <button id="btn-reset" class="btn btn-danger btn-sm btn-icon-only" title="Clear All Tracks">
+          <i data-lucide="trash-2"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Dashboard -->
+    <div class="dashboard">
+      
+      <!-- Sidebar / Track List -->
+      <aside class="sidebar">
+        <!-- Drop Zone -->
+        <div id="drop-zone" class="drop-zone">
+          <div class="drop-zone-icon">
+            <i data-lucide="upload-cloud" size="32"></i>
+          </div>
+          <p>Drag & drop MP3 files here</p>
+          <span>or select below</span>
+          <input type="file" id="file-input" multiple accept="audio/mp3,audio/mpeg" style="display: none;">
+        </div>
+
+        <div class="picker-bar" style="padding: 0 16px; margin-bottom: 16px; display: flex; gap: 8px;">
+          <button id="btn-open-files" class="btn btn-secondary btn-sm" style="flex: 1;" title="Open files for in-place editing">
+            <i data-lucide="file-audio" size="14"></i>
+            <span>Select Files</span>
+          </button>
+          <button id="btn-open-folder" class="btn btn-secondary btn-sm" style="flex: 1;" title="Open a whole folder for in-place editing">
+            <i data-lucide="folder-open" size="14"></i>
+            <span>Select Folder</span>
+          </button>
+        </div>
+
+        <!-- Sidebar Search Bar -->
+        <div style="padding: 0 16px; margin-bottom: 12px;">
+          <div style="position: relative; width: 100%;">
+            <input type="text" id="library-search-input" placeholder="Search track library..." style="width: 100%; padding: 8px 12px 8px 32px; font-size: 12px; background: rgba(22,25,38,0.4); border-radius: 8px; border: 1px solid var(--border-color); color: white;">
+            <i data-lucide="search" size="12" style="position: absolute; left: 10px; top: 10px; color: var(--text-muted);"></i>
+          </div>
+        </div>
+
+        <!-- Track List container -->
+        <div class="track-list-container">
+          <div class="track-list-header">
+            <span>Loaded Tracks (<span id="tracks-count">0</span>)</span>
+            <span id="tracks-status-summary"></span>
+          </div>
+          <div id="track-list" class="track-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </aside>
+
+      <main id="inspector" class="inspector">
+        <!-- Blurred Dynamic Background -->
+        <div id="blurred-bg" class="blurred-bg"></div>
+
+        <!-- Empty State -->
+        <div id="inspector-empty" class="empty-state">
+          <div class="empty-state-icon">
+            <i data-lucide="music" size="32"></i>
+          </div>
+          <h3>No Track Selected</h3>
+          <p>Add some MP3 files using the sidebar upload zone and select a track to begin tagging.</p>
+        </div>
+
+        <!-- Inspector Content -->
+        <div id="inspector-content" class="inspector-content" style="display: none;">
+          
+          <!-- Audio Player Card -->
+          <div class="audio-player-card">
+            
+            <!-- Seek Progress slider and times -->
+            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
+              <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 500; color: var(--text-secondary); font-family: 'Outfit';">
+                <span id="player-current-time">0:00</span>
+                <span id="player-track-info" style="color: var(--text-primary); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 70%; font-weight: 600;">Select a track to play</span>
+                <span id="player-total-time">0:00</span>
+              </div>
+              <input type="range" id="player-seek" min="0" max="100" value="0" style="width: 100%; height: 4px; border-radius: 2px; background: rgba(0, 0, 0, 0.1); outline: none; cursor: pointer; accent-color: var(--primary); transition: background-color 150ms;">
+            </div>
+
+            <!-- Web Audio Visualizer Canvas -->
+            <canvas id="player-visualizer" style="width: 100%; height: 32px; border-radius: 6px; background: var(--surface-code, #1c1c1e); display: block;"></canvas>
+
+            <!-- Player Controls & Volume Group -->
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button id="btn-player-shuffle" class="btn btn-secondary btn-icon-only btn-sm" style="border-radius: 8px; width: 32px; height: 32px;" title="Shuffle Playback">
+                  <i data-lucide="shuffle" size="14"></i>
+                </button>
+                <button id="btn-player-prev" class="btn btn-secondary btn-icon-only btn-sm" style="border-radius: 8px; width: 32px; height: 32px;" title="Previous Song">
+                  <i data-lucide="skip-back" size="14"></i>
+                </button>
+                <button id="player-play-btn" class="btn btn-primary btn-icon-only" style="border-radius: 8px; width: 44px; height: 44px; border: none; cursor: pointer;" title="Play / Pause">
+                  <i id="player-play-icon" data-lucide="play" size="18" style="margin-left: 2px;"></i>
+                </button>
+                <button id="btn-player-next" class="btn btn-secondary btn-icon-only btn-sm" style="border-radius: 8px; width: 32px; height: 32px;" title="Next Song">
+                  <i data-lucide="skip-forward" size="14"></i>
+                </button>
+                <button id="btn-player-repeat" class="btn btn-secondary btn-icon-only btn-sm" style="border-radius: 8px; width: 32px; height: 32px;" title="Repeat Mode">
+                  <i data-lucide="repeat" size="14"></i>
+                </button>
+              </div>
+              
+              <!-- Volume slider -->
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="volume-2" size="14" style="color: var(--text-secondary); cursor: pointer;" id="player-volume-icon"></i>
+                <input type="range" id="player-volume" min="0" max="100" value="80" style="width: 70px; height: 3px; border-radius: 2px; background: rgba(0, 0, 0, 0.1); outline: none; cursor: pointer; accent-color: var(--primary);">
+              </div>
+            </div>
+            
+            <!-- Synced LRC Lyrics container -->
+            <div id="player-lyrics-container" class="synced-lyrics-container" style="display: none; max-height: 90px; overflow-y: hidden; text-align: center; font-size: 13px; font-weight: 500; line-height: 1.6; margin-top: 6px; padding: 6px; border-top: 1px solid #e6d5a8; color: var(--text-secondary);">
+              <!-- Synced lyrics will scroll here -->
+            </div>
+
+            <audio id="audio-element" style="display: none;"></audio>
+          </div>
+
+          <div class="inspector-grid">
+            
+            <!-- Column 1: Artwork -->
+            <div class="artwork-panel">
+              <div id="artwork-frame" class="artwork-frame">
+                <i data-lucide="image" size="48"></i>
+                <div class="artwork-frame-overlay">
+                  <i data-lucide="upload"></i>
+                  <span>Upload Custom Cover</span>
+                </div>
+                <input type="file" id="artwork-input" accept="image/jpeg,image/png" style="display: none;">
+              </div>
+              <div class="artwork-info">
+                <div id="artwork-res" class="artwork-res">No cover art</div>
+                <div id="artwork-format" class="artwork-format"></div>
+              </div>
+              <div class="artwork-actions">
+                <button id="btn-search-cover" class="btn btn-secondary btn-sm" style="flex: 1;">
+                  <i data-lucide="search"></i>
+                  <span>Search iTunes</span>
+                </button>
+                <button id="btn-remove-cover" class="btn btn-danger btn-sm btn-icon-only" title="Remove Cover Art">
+                  <i data-lucide="x"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Column 2: Metadata Form -->
+            <div class="form-panel">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="input-title">Title</label>
+                  <input type="text" id="input-title" placeholder="Song title">
+                </div>
+                <div class="form-group">
+                  <label for="input-artist">Artist</label>
+                  <input type="text" id="input-artist" placeholder="Artist name">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="input-album">Album</label>
+                  <input type="text" id="input-album" placeholder="Album name">
+                </div>
+                <div class="form-group">
+                  <label for="input-album-artist">Album Artist</label>
+                  <input type="text" id="input-album-artist" placeholder="Album artist (optional)">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="input-genre">Genre</label>
+                  <input type="text" id="input-genre" placeholder="e.g. Pop, Rock, Electronic">
+                </div>
+                <div class="form-group">
+                  <label for="input-year">Year</label>
+                  <input type="number" id="input-year" placeholder="YYYY" min="1800" max="2100">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="input-track">Track Number</label>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="input-track" placeholder="e.g. 1" style="flex: 1;">
+                    <span style="color: var(--text-muted);">/</span>
+                    <input type="text" id="input-track-total" placeholder="Total" style="flex: 1;">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="input-disc">Disc Number</label>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="input-disc" placeholder="e.g. 1" style="flex: 1;">
+                    <span style="color: var(--text-muted);">/</span>
+                    <input type="text" id="input-disc-total" placeholder="Total" style="flex: 1;">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group form-group-full">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                  <label for="input-lyrics">Lyrics</label>
+                  <button id="btn-search-lyrics" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 10px; height: auto;" title="Search and fetch lyrics from LRCLIB database">
+                    <i data-lucide="music-3" size="10"></i>
+                    <span>Fetch from LRCLIB</span>
+                  </button>
+                </div>
+                <textarea id="input-lyrics" placeholder="Paste lyrics here..."></textarea>
+              </div>
+
+              <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; flex-wrap: wrap;">
+                <button id="btn-magic" class="btn btn-primary" title="Magic Auto-Match & Save In-Place">
+                  <i data-lucide="wand-2" size="14"></i>
+                  <span>Magic Auto-Tag</span>
+                </button>
+                <button id="btn-save" class="btn btn-secondary">
+                  <i data-lucide="save" size="14"></i>
+                  <span id="save-btn-text">Save In-Place</span>
+                </button>
+                <button id="btn-download" class="btn btn-secondary">
+                  <i data-lucide="download" size="14"></i>
+                  <span>Download Copy</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- iTunes Suggestions Panel -->
+          <div class="suggestions-section">
+            <h4 id="suggestions-header" style="margin-bottom: 12px;">
+              <i data-lucide="sparkles" size="16"></i>
+              <span>iTunes Matching Suggestions</span>
+            </h4>
+            
+            <!-- Inline Search Query Box -->
+            <div style="display: flex; gap: 8px; margin-bottom: 20px; width: 100%;">
+              <input type="text" id="suggestions-search-input" placeholder="Search iTunes for other matches..." style="flex: 1; padding: 10px 14px; font-size: 13px;">
+              <button id="btn-suggestions-search" class="btn btn-secondary" style="padding: 10px 18px;">
+                <i data-lucide="search" size="14"></i>
+                <span>Search</span>
+              </button>
+            </div>
+            <div id="suggestions-loading" class="loading-container" style="display: none;">
+              <i data-lucide="loader-2" class="spinner" size="24"></i>
+              <span>Searching iTunes...</span>
+            </div>
+            <div id="suggestions-empty" style="color: var(--text-muted); font-size: 13px; display: none;">
+              No matches found on iTunes. Try adjusting the title/artist in the form above and clicking Search again.
+            </div>
+            <div id="suggestions-grid" class="suggestions-grid">
+              <!-- Dynamically populated suggestion-cards -->
+            </div>
+          </div>
+
+        </div>
+      </main>
+
+    </div>
+
+    <!-- Success Checkmark Overlay -->
+    <div id="success-overlay" class="success-overlay">
+      <svg class="success-checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+        <circle cx="26" cy="26" r="25" />
+        <path d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+      </svg>
+      <h3 style="margin-top: 16px; font-family: 'Outfit';">Changes Saved!</h3>
+      <p style="color: var(--text-secondary); font-size: 13px; margin-top: 4px;">File updated and ready for download.</p>
+    </div>
+
+    <!-- Sunset Stripe -->
+    <div class="sunset-stripe"></div>
+
+    <!-- Bottom Mobile Nav -->
+    <nav class="mobile-nav">
+      <button class="nav-tab active" data-tab="library">
+        <i data-lucide="library" size="18"></i>
+        <span>Library</span>
+      </button>
+      <button class="nav-tab" data-tab="player">
+        <i data-lucide="music" size="18"></i>
+        <span>Player</span>
+      </button>
+      <button class="nav-tab" data-tab="editor">
+        <i data-lucide="edit-3" size="18"></i>
+        <span>Editor</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- CDN scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/mp3tag.js@3.7.1/dist/mp3tag.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="app.js"></script>
+</body>
+</html>

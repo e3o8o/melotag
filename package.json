@@ -1,0 +1,14 @@
+{
+  "name": "melotag-web",
+  "version": "1.0.0",
+  "description": "Client-Side MP3 Tag and Cover Art Editor",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

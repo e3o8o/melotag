@@ -1,0 +1,27 @@
+{
+  "name": "MeloTag",
+  "short_name": "MeloTag",
+  "description": "MeloTag — Premium Client-Side Music Player & ID3 Tag Editor",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#fff8e0",
+  "theme_color": "#fa520f",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
