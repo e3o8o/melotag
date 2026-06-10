@@ -4,23 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>MeloTag — Client-Side Music Player & Tag Editor</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="src/styles/index.css">
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MeloTag">
   <link rel="icon" href="icon.svg">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
   <meta name="theme-color" content="#F5C518">
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('Service Worker registered:', reg.scope))
-          .catch(err => console.error('Service Worker registration failed:', err));
-      });
-    }
-  </script>
+  <!-- Service Worker registered dynamically via main.js -->
 </head>
 <body>
   <!-- Mobile Status Bar -->
@@ -95,7 +87,19 @@
             <span>TRACKS (<span id="tracks-count">0</span>)</span>
             <span id="tracks-status-summary" class="track-list-status"></span>
           </div>
+          <div class="batch-actions-bar" id="batch-actions-bar" style="display: none;">
+            <button id="btn-batch-autotag" class="btn btn-amber btn-xs" title="Auto-tag selected tracks">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15.5 19.5-3.238-2.748L5.647 21l2.647-6.876L3 9.861h6.882L11.974 3l2.214 6.861L21 9.876l-4.765 4.248L18.882 21"/></svg>
+              <span>Auto-Tag</span>
+            </button>
+            <button id="btn-batch-save" class="btn btn-outline btn-xs" title="Save selected tracks in-place">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v1.2c0 1.68 0 2.52-.327 3.162a3 3 0 0 1-1.311 1.311C18.72 21 17.88 21 16.2 21H7.8c-1.68 0-2.52 0-3.162-.327a3 3 0 0 1-1.311-1.311C3 18.72 3 17.88 3 16.2V15m14-5-5 5m0 0-5-5m5 5V3"/></svg>
+              <span>Save</span>
+            </button>
+            <span class="batch-selected-count" id="batch-selected-count">0 selected</span>
+          </div>
           <div class="track-column-headers">
+            <span class="track-col-select"><input type="checkbox" id="chk-select-all" title="Select all tracks"></span>
             <span class="track-col-num">#</span>
             <span class="track-col-title">Title</span>
             <span class="track-col-time">Time</span>
@@ -190,7 +194,7 @@
             <div class="artwork-actions">
               <button id="btn-search-cover" class="btn btn-outline btn-sm" style="flex:1">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-                <span>Search iTunes</span>
+                <span>Search Metadata</span>
               </button>
               <button id="btn-remove-cover" class="btn btn-outline btn-sm" title="Remove Cover Art" style="padding:0;width:32px;height:32px">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 19.5l15-15m-15 0l15 15"/></svg>
@@ -281,15 +285,15 @@
             <div class="suggestions-section">
               <div class="suggestions-header">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="m15.5 19.5-3.238-2.748L5.647 21l2.647-6.876L3 9.861h6.882L11.974 3l2.214 6.861L21 9.876l-4.765 4.248L18.882 21"/></svg>
-                <span>iTunes Matching Suggestions</span>
+                <span>Metadata Matching Suggestions</span>
               </div>
               <div class="suggestions-search-row">
-                <input type="text" id="suggestions-search-input" class="search-input" placeholder="Search iTunes for other matches...">
+                <input type="text" id="suggestions-search-input" class="search-input" placeholder="Search for other matches...">
                 <button id="btn-suggestions-search" class="btn btn-outline btn-sm">Search</button>
               </div>
               <div id="suggestions-loading" class="loading-state" style="display:none">
                 <div class="spinner"></div>
-                <span>Searching iTunes...</span>
+                <span>Searching metadata databases...</span>
               </div>
               <div id="suggestions-empty" class="empty-msg" style="display:none">
                 No matches found. Try adjusting the title/artist above.
@@ -429,6 +433,6 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/mp3tag.js@3.7.1/dist/mp3tag.min.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="src/main.js"></script>
 </body>
 </html>

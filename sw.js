@@ -1,11 +1,12 @@
-const CACHE_NAME = 'melotag-v1';
+const CACHE_NAME = 'melotag-v4';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css',
-  './app.js',
   './manifest.json',
-  './icon.svg'
+  './icon.svg',
+  './icon-180.png',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 // Install Event - cache core assets
@@ -34,9 +35,15 @@ self.addEventListener('activate', (e) => {
 
 // Fetch Event - network-first fallback to cache (offline support)
 self.addEventListener('fetch', (e) => {
+  const url = e.request.url;
+
+  // Exclude API proxy routes from service worker interception
+  if (url.includes('/api/')) {
+    return;
+  }
+
   // Exclude external search APIs (iTunes/LRCLIB) from caching to always get fresh results,
   // but cache CDN files (googleapis, unpkg, jsdelivr)
-  const url = e.request.url;
   const isCdn = url.includes('googleapis.com') || url.includes('gstatic.com') || url.includes('unpkg.com') || url.includes('jsdelivr.net');
   const isLocal = url.startsWith(self.location.origin);
 

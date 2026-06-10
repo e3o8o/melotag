@@ -1,0 +1,589 @@
+/* ============================================
+   Mobile Nav
+   ============================================ */
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: var(--bg-elevated);
+  box-shadow: inset 0 1px 0 0 var(--border);
+  z-index: 100;
+  align-items: center;
+  justify-content: space-around;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.nav-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  color: var(--text-quaternary);
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 500;
+  width: 33.33%;
+  height: 100%;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.nav-tab.active {
+  color: var(--chrome);
+}
+
+.nav-tab:active {
+  transform: scale(0.95);
+}
+
+/* ============================================
+   Mobile Status Bar & Header
+   ============================================ */
+.mobile-status-bar {
+  display: none;
+  height: 44px;
+  padding: 0 16px;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-elevated);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.mobile-status-time {
+  font-weight: 700;
+}
+
+.mobile-status-icons {
+  display: flex;
+  gap: 4px;
+  color: var(--text-secondary);
+}
+
+.mobile-header {
+  display: none;
+  height: 48px;
+  padding: 0 16px;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-elevated);
+  box-shadow: inset 0 -1px 0 0 var(--border);
+  flex-shrink: 0;
+}
+
+.mobile-header-title {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.mobile-back-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.mobile-back-btn:hover {
+  background: var(--bg-surface);
+}
+
+/* ============================================
+   Player View (mobile full-screen player)
+   ============================================ */
+.player-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 32px 24px;
+  gap: 20px;
+  overflow-y: auto;
+  /* dvh fallback: use vh first, then override with dvh where supported */
+  height: 100vh;
+  height: 100dvh;
+}
+
+.pv-artwork {
+  width: 240px;
+  height: 240px;
+  border-radius: 12px;
+  background: var(--bg-surface);
+  background-size: cover;
+  background-position: center;
+  box-shadow: inset 0 0 0 1px var(--border), 0 8px 32px rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-quaternary);
+  flex-shrink: 0;
+}
+
+.pv-info {
+  text-align: center;
+  width: 100%;
+}
+
+.pv-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pv-artist {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.pv-seek-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.pv-time {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+}
+
+.pv-time:last-child {
+  text-align: right;
+}
+
+.pv-seek {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  outline: none;
+  cursor: pointer;
+}
+
+.pv-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--chrome);
+  cursor: pointer;
+}
+
+.pv-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.pv-volume-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 200px;
+}
+
+.pv-volume {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  outline: none;
+  cursor: pointer;
+}
+
+.pv-volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--chrome);
+  cursor: pointer;
+}
+
+.pv-lyrics {
+  width: 100%;
+  max-width: 400px;
+  max-height: 120px;
+  overflow-y: auto;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+  scrollbar-width: none;
+}
+
+.pv-lyrics::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================
+   iPad Mini Breakpoint (744px+)
+   Ensures iPad Mini gets tablet layout, not phone
+   ============================================ */
+@media (min-width: 744px) and (max-width: 768px) {
+  :root {
+    --sidebar-w: 240px;
+  }
+
+  .app {
+    flex-direction: row;
+  }
+
+  .app-body {
+    flex-direction: row;
+  }
+
+  .sidebar {
+    width: var(--sidebar-w) !important;
+    min-width: var(--sidebar-w) !important;
+    height: 100%;
+    border-right: none;
+  }
+
+  .mobile-nav {
+    display: none;
+  }
+
+  .mobile-header {
+    display: none;
+  }
+
+  .sidebar-header {
+    display: flex;
+  }
+
+  .now-playing-bar {
+    display: flex;
+  }
+
+  .np-left {
+    width: 160px;
+  }
+
+  .np-right {
+    width: 160px;
+  }
+
+  .np-right .now-playing-visualizer {
+    display: none;
+  }
+
+  .np-volume-slider {
+    width: 50px !important;
+  }
+
+  .inspector-content {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .inspector-columns {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .col-artwork {
+    flex: 0 0 180px;
+  }
+
+  .col-form {
+    flex: 1;
+    min-width: 240px;
+  }
+
+  .col-suggestions {
+    flex: 1 0 100%;
+    box-shadow: none;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+
+  .suggestions-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+
+  .np-queue-panel {
+    right: 8px;
+    width: 280px;
+  }
+
+  .track-column-headers {
+    display: flex;
+  }
+}
+
+/* ============================================
+   Tablet Layout
+   ============================================ */
+@media (min-width: 769px) and (max-width: 1024px) {
+  :root {
+    --sidebar-w: 240px;
+  }
+
+  .np-left {
+    width: 180px;
+  }
+
+  .np-right {
+    width: 180px;
+  }
+
+  .np-right .now-playing-visualizer {
+    display: none;
+  }
+
+  .np-volume-slider {
+    width: 60px !important;
+  }
+
+  .inspector-content {
+    padding: 20px;
+    gap: 20px;
+  }
+
+  .inspector-columns {
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  .col-artwork {
+    flex: 0 0 200px;
+  }
+
+  .col-form {
+    flex: 1;
+    min-width: 260px;
+  }
+
+  .col-suggestions {
+    flex: 1 0 100%;
+    box-shadow: none;
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+  }
+
+  .suggestions-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+
+  .np-queue-panel {
+    right: 8px;
+    width: 300px;
+  }
+}
+
+/* ============================================
+   Mobile Layout
+   ============================================ */
+@media (max-width: 768px) {
+  .app {
+    flex-direction: column;
+    padding-bottom: 56px;
+  }
+
+  .app-body {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    border-right: none;
+    height: 100%;
+  }
+
+  .main-area {
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  .inspector-content {
+    padding: 16px;
+    gap: 16px;
+    flex-direction: column;
+  }
+
+  .inspector-columns {
+    flex-direction: column;
+  }
+
+  .col-artwork {
+    flex: none;
+    max-width: 200px;
+    align-self: center;
+  }
+
+  .col-form {
+    flex: none;
+  }
+
+  .col-suggestions {
+    flex: none;
+  }
+
+  .artwork-frame {
+    max-width: 260px;
+    margin: 0 auto;
+  }
+
+  .suggestions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pv-artwork {
+    width: min(280px, 60vw);
+    height: min(280px, 60vw);
+  }
+
+  .pv-controls {
+    gap: 12px;
+  }
+
+  .pv-seek-row {
+    max-width: none;
+  }
+
+  .pv-volume-row {
+    max-width: 160px;
+  }
+
+  .player-view {
+    padding: 20px 16px;
+    gap: 14px;
+  }
+
+  .pv-title {
+    font-size: 15px;
+  }
+
+  .pv-artist {
+    font-size: 12px;
+  }
+
+  /* Hide mobile chrome that duplicates real device UI */
+  .mobile-status-bar {
+    display: none;
+  }
+
+  .mobile-header {
+    display: flex;
+  }
+
+  /* Hide sidebar header on mobile (mobile header shows the title) */
+  .sidebar-header {
+    display: none;
+  }
+
+  /* Reduce sidebar top padding since header is gone */
+  .drop-zone {
+    margin-top: 8px;
+  }
+
+  /* Hide now-playing bar on mobile */
+  .now-playing-bar {
+    display: none;
+  }
+
+  /* Hide queue panel on mobile (shown in player tab) */
+  .np-queue-panel {
+    display: none !important;
+  }
+
+  /* Hide column headers on mobile */
+  .track-column-headers {
+    display: none;
+  }
+
+  /* Tab visibility logic */
+  body.tab-library .sidebar { display: flex !important; }
+  body.tab-library .main-area { display: none !important; }
+
+  body.tab-player .sidebar { display: none !important; }
+  body.tab-player .main-area { display: flex !important; }
+  body.tab-player .player-column { display: flex !important; }
+  body.tab-player .editor-column { display: none !important; }
+
+  body.tab-editor .sidebar { display: none !important; }
+  body.tab-editor .main-area { display: flex !important; }
+  body.tab-editor .player-column { display: none !important; }
+  body.tab-editor .editor-column { display: flex !important; }
+
+  .mobile-nav {
+    display: flex;
+  }
+}
+
+/* ============================================
+   Small Mobile (< 480px) — Stack form rows
+   ============================================ */
+@media (max-width: 480px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .form-group-full {
+    grid-column: span 1;
+  }
+}
+
+/* ============================================
+   Short Mobile Screens
+   ============================================ */
+@media (max-width: 768px) and (max-height: 700px) {
+  .player-view {
+    padding: 12px 12px;
+    gap: 10px;
+  }
+
+  .pv-artwork {
+    width: min(130px, 35vw);
+    height: min(130px, 35vw);
+  }
+
+  .pv-title {
+    font-size: 14px;
+  }
+
+  .pv-controls {
+    gap: 10px;
+  }
+
+  .pv-volume-row {
+    max-width: 130px;
+  }
+
+  .pv-lyrics {
+    max-height: 60px;
+  }
+}

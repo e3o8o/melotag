@@ -1,0 +1,14 @@
+/* ============================================
+   App Layout
+   ============================================ */
+.app {
+  display: flex;
+  height: 100vh;
+  flex-direction: column;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
