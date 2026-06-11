@@ -126,6 +126,14 @@ function writeTags(filepath, tags, artwork) {
     }
   } else {
     try {
+      let existingImage = null;
+      try {
+        const existing = NodeID3.read(filepath);
+        if (existing && existing.image) {
+          existingImage = existing.image;
+        }
+      } catch (e) {}
+
       NodeID3.removeTags(filepath);
       
       const id3Tags = { ...tags };
@@ -136,6 +144,8 @@ function writeTags(filepath, tags, artwork) {
           description: 'Cover',
           imageBuffer: artwork.buffer
         };
+      } else if (existingImage) {
+        id3Tags.image = existingImage;
       }
       return NodeID3.write(id3Tags, filepath);
     } catch (err) {
@@ -327,38 +337,60 @@ function calculateAlbumScore(queryArtist, queryAlbum, matchArtist, matchAlbum) {
   return artistScore * 0.5 + albumScore * 0.5;
 }
 
+// Levenshtein distance helper for fuzzy matching
+function getEditDistance(a, b) {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+function getSimilarity(a, b) {
+  const distance = getEditDistance(a, b);
+  const maxLength = Math.max(a.length, b.length);
+  if (maxLength === 0) return 1.0;
+  return 1.0 - distance / maxLength;
+}
+
 // Calculate similarity score between query artist/title and candidate artist/title for tracks
 function calculateTrackScore(queryArtist, queryTitle, matchArtist, matchTitle) {
   const clean = cleanKey;
-  
-  // Custom cleaner for track titles to strip common conjunctions like "and" or "&"
-  const cleanTrack = (str) => {
-    return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\band\b/g, '').replace(/[^a-z0-9]/g, '');
-  };
-
   const qa = clean(queryArtist);
-  const qb = cleanTrack(queryTitle);
   const ma = clean(matchArtist);
-  const mb = cleanTrack(matchTitle);
 
-  if (!qb) return 0;
-
-  // Exact matching for title
-  const exactTitle = qb === mb;
-  const titleSub = qb && mb ? (qb.includes(mb) || mb.includes(qb)) : false;
-
-  let titleScore = 0;
-  if (exactTitle) titleScore = 1.0;
-  else if (titleSub) titleScore = 0.8;
-  else titleScore = 0.0;
+  if (!queryTitle || !matchTitle) return 0;
 
   // Matching for artist
   const exactArtist = qa === ma;
   const artistSub = qa && ma ? (qa.includes(ma) || ma.includes(qa)) : false;
+  let artistSimilarity = 0;
+  if (qa && ma) {
+    artistSimilarity = getSimilarity(qa, ma);
+  }
 
   let artistScore = 0;
   if (exactArtist) artistScore = 1.0;
   else if (artistSub) artistScore = 0.8;
+  else if (artistSimilarity >= 0.8) artistScore = 0.8;
   else artistScore = 0.2;
 
   // Reject track-level matches if a query artist is provided but doesn't match the candidate artist at all
@@ -366,8 +398,69 @@ function calculateTrackScore(queryArtist, queryTitle, matchArtist, matchTitle) {
     return 0;
   }
 
+  // Tokenize titles to handle spelling differences and word additions/removals
+  const tokenize = (str) => {
+    return (str || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\band\b/g, '')
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 0);
+  };
+
+  const qbClean = cleanKey(queryTitle);
+  const mbClean = cleanKey(matchTitle);
+
+  // Check exact/substring matching first
+  const exactTitle = qbClean === mbClean;
+  const titleSub = qbClean && mbClean ? (qbClean.includes(mbClean) || mbClean.includes(qbClean)) : false;
+
+  let titleScore = 0;
+  if (exactTitle) {
+    titleScore = 1.0;
+  } else if (titleSub) {
+    titleScore = 0.9;
+  } else {
+    // Word/Token based similarity
+    const qTokens = tokenize(queryTitle);
+    const mTokens = tokenize(matchTitle);
+
+    if (qTokens.length > 0 && mTokens.length > 0) {
+      let matches = 0;
+      for (const q of qTokens) {
+        if (mTokens.includes(q)) {
+          matches++;
+        } else {
+          for (const m of mTokens) {
+            if (getSimilarity(q, m) >= 0.8) {
+              matches++;
+              break;
+            }
+          }
+        }
+      }
+
+      const overlapQ = matches / qTokens.length;
+      const overlapM = matches / mTokens.length;
+      const tokenOverlap = Math.max(overlapQ, overlapM);
+
+      if (tokenOverlap >= 0.75) {
+        titleScore = 0.8;
+      } else if (tokenOverlap >= 0.5) {
+        titleScore = 0.6;
+      } else {
+        titleScore = 0.0;
+      }
+    } else {
+      titleScore = 0.0;
+    }
+  }
+
   return titleScore * 0.7 + artistScore * 0.3;
 }
+
 
 // Search iTunes, Deezer, and MusicBrainz for candidate albums
 async function searchAlbumAcrossSources(artist, album) {
@@ -925,11 +1018,13 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
       let newFilepath = path.join(path.dirname(filepath), newFilename);
 
       if (filepath !== newFilepath) {
-        let counter = 1;
-        while (fs.existsSync(newFilepath)) {
-          const nameWithoutExt = path.parse(newFilename).name;
-          newFilepath = path.join(path.dirname(filepath), `${nameWithoutExt} (${counter})${ext}`);
-          counter++;
+        if (filepath.toLowerCase() !== newFilepath.toLowerCase()) {
+          let counter = 1;
+          while (fs.existsSync(newFilepath)) {
+            const nameWithoutExt = path.parse(newFilename).name;
+            newFilepath = path.join(path.dirname(filepath), `${nameWithoutExt} (${counter})${ext}`);
+            counter++;
+          }
         }
         fs.renameSync(filepath, newFilepath);
         console.log(`  ${colors.cyan}➜ Renamed file to: ${path.basename(newFilepath)}${colors.reset}`);
