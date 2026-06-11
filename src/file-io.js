@@ -142,16 +142,49 @@ function setAlbumContext(artist, album) {
   }
 }
 
-// --- Scan Directory ---
+// --- Scan Directory (File System Access API) ---
 async function scanDirectory(dirHandle) {
   for await (const entry of dirHandle.values()) {
-    if (entry.kind === 'file' && entry.name.endsWith('.mp3')) {
+    if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.mp3')) {
       const file = await entry.getFile();
       await addTrackObject(file, entry);
     } else if (entry.kind === 'directory') {
       await scanDirectory(entry);
     }
   }
+}
+
+// --- Read Directory Entry (webkitGetAsEntry fallback — Safari / Firefox) ---
+function readDirectoryEntry(dirEntry, topLevelName) {
+  if (!topLevelName) {
+    const { artist, album } = inferFromFolderName(dirEntry.name);
+    setAlbumContext(artist, album);
+  }
+  return new Promise((resolve) => {
+    const name = topLevelName || dirEntry.name;
+    const reader = dirEntry.createReader();
+
+    function readBatch() {
+      reader.readEntries(async (entries) => {
+        if (entries.length === 0) { resolve(); return; }
+        for (const entry of entries) {
+          if (entry.isFile && entry.name.toLowerCase().endsWith('.mp3')) {
+            await new Promise((res) => {
+              entry.file(async (file) => {
+                await addTrackObject(file, null);
+                res();
+              }, res);
+            });
+          } else if (entry.isDirectory) {
+            await readDirectoryEntry(entry, name);
+          }
+        }
+        readBatch(); // read next batch (readEntries returns max 100 at a time)
+      }, () => resolve());
+    }
+
+    readBatch();
+  });
 }
 
 // --- Permission Helper ---
@@ -288,8 +321,39 @@ export function initFileIOListeners(hasFS) {
       }
     });
   } else {
+    // Fallback: use standard file input for files
     btnOpenFiles.addEventListener('click', () => fileInput.click());
-    btnOpenFolder.addEventListener('click', () => fileInput.click());
+
+    // Fallback: use a separate input with webkitdirectory for folder selection
+    const folderInput = document.createElement('input');
+    folderInput.type = 'file';
+    folderInput.multiple = true;
+    folderInput.accept = 'audio/mp3,audio/mpeg';
+    folderInput.setAttribute('webkitdirectory', '');
+    folderInput.setAttribute('directory', '');
+    folderInput.style.display = 'none';
+    document.body.appendChild(folderInput);
+
+    folderInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files).filter(f => f.name.endsWith('.mp3'));
+      if (files.length === 0) return;
+
+      // Infer folder name from the common directory path
+      const firstPath = files[0].webkitRelativePath || '';
+      const folderName = firstPath.split('/')[0] || '';
+      if (folderName) {
+        const { artist, album } = inferFromFolderName(folderName);
+        setAlbumContext(artist, album);
+      }
+
+      for (const file of files) {
+        await addTrackObject(file, null);
+      }
+      updateUI();
+      folderInput.value = '';
+    });
+
+    btnOpenFolder.addEventListener('click', () => folderInput.click());
   }
 
   // Drag & Drop
@@ -315,22 +379,49 @@ export function initFileIOListeners(hasFS) {
 
     if (hasFS && e.dataTransfer.items) {
       const items = Array.from(e.dataTransfer.items);
+      let loadedFolder = false;
+
       for (const item of items) {
-        if (item.kind === 'file') {
-          try {
-            const handle = await item.getAsFileSystemHandle();
-            if (handle && handle.kind === 'file' && handle.name.endsWith('.mp3')) {
-              const file = await handle.getFile();
-              await addTrackObject(file, handle);
-            }
-          } catch (err) {
-            console.error('Error getting handle from drop item:', err);
+        if (item.kind !== 'file') continue;
+        try {
+          const handle = await item.getAsFileSystemHandle();
+          if (!handle) continue;
+
+          if (handle.kind === 'directory') {
+            // Dropped a folder — infer album context and scan it
+            const { artist, album } = inferFromFolderName(handle.name);
+            setAlbumContext(artist, album);
+            await scanDirectory(handle);
+            loadedFolder = true;
+          } else if (handle.kind === 'file' && handle.name.toLowerCase().endsWith('.mp3')) {
+            const file = await handle.getFile();
+            await addTrackObject(file, handle);
           }
+        } catch (err) {
+          console.error('Error getting handle from drop item:', err);
         }
       }
+
       updateUI();
     } else {
-      await handleStandardFiles(e.dataTransfer.files);
+      // Non-FS-API path: check if items include a folder via webkitGetAsEntry
+      const items = Array.from(e.dataTransfer.items || []);
+      let handledByEntry = false;
+
+      for (const item of items) {
+        if (item.kind !== 'file') continue;
+        const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+        if (entry && entry.isDirectory) {
+          handledByEntry = true;
+          await readDirectoryEntry(entry);
+        }
+      }
+
+      if (!handledByEntry) {
+        await handleStandardFiles(e.dataTransfer.files);
+      } else {
+        updateUI();
+      }
     }
   });
 

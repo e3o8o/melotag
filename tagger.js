@@ -403,16 +403,48 @@ async function main() {
           if (tracksRes.ok) {
             const tracksData = await tracksRes.json();
             const tracks = tracksData.data || [];
-            console.log(`${colors.green}Retrieved official tracklist from Deezer (${tracks.length} tracks).${colors.reset}`);
-            tracks.forEach(t => {
+            console.log(`${colors.green}Retrieved official tracklist from Deezer (${tracks.length} tracks). Fetching track details...${colors.reset}`);
+            
+            // Parallel fetch details for all tracks to resolve contributors (features)
+            const trackDetails = await Promise.all(
+              tracks.map(async (t) => {
+                try {
+                  const detailRes = await fetch(`https://api.deezer.com/track/${t.id}`);
+                  if (detailRes.ok) {
+                    return await detailRes.json();
+                  }
+                } catch (e) {
+                  // Fallback to basic track info
+                }
+                return t;
+              })
+            );
+
+            trackDetails.forEach(t => {
+              let finalT = smartTitleCase(t.title || "");
+              let finalA = t.artist?.name || inferredArtist;
+
+              // Extract features from contributors
+              if (t.contributors && t.contributors.length > 1) {
+                const mainArtist = t.artist?.name || inferredArtist;
+                const feats = t.contributors
+                  .filter(c => c.name.toLowerCase() !== mainArtist.toLowerCase())
+                  .map(c => c.name);
+                
+                if (feats.length > 0) {
+                  finalT = `${finalT} (feat. ${feats.join(' & ')})`;
+                  finalA = `${mainArtist} & ${feats.join(' & ')}`;
+                }
+              }
+
               // Store by clean title key
               const key = t.title.toLowerCase().replace(/[^a-z0-9]/g, "");
               const shortKey = (t.title_short || "").toLowerCase().replace(/[^a-z0-9]/g, "");
               
               const trackInfo = {
-                title: t.title,
+                title: finalT,
                 trackNumber: String(t.track_position),
-                artist: t.artist?.name || inferredArtist
+                artist: finalA
               };
               
               tracklistMap.set(key, trackInfo);

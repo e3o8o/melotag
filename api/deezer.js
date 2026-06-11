@@ -18,6 +18,11 @@ export default async function handler(req, res) {
       const match = originalPath.match(/\/album\/(\d+)\/tracks/);
       const albumId = match[1];
       deezerUrl = `https://api.deezer.com/album/${albumId}/tracks`;
+    } else if (originalPath.match(/\/track\/(\d+)/)) {
+      // Track details: /api/deezer/track/:id
+      const match = originalPath.match(/\/track\/(\d+)/);
+      const trackId = match[1];
+      deezerUrl = `https://api.deezer.com/track/${trackId}`;
     } else if (originalPath.includes('/album/')) {
       // Album info: /api/deezer/album/:id
       const match = originalPath.match(/\/album\/(\d+)/);

@@ -1,4 +1,5 @@
 // MeloTag — API Module (iTunes, Deezer, MusicBrainz, LRCLIB)
+import { smartTitleCase } from './utils.js';
 
 // --- LRCLIB Lyrics API ---
 export async function fetchLyricsFromLRCLIB(title, artist) {
@@ -283,13 +284,44 @@ export async function fetchAlbumContext(artist, album) {
     const tracksData = await tracksRes.json();
     const tracks = tracksData.data || [];
 
-    tracks.forEach(t => {
+    // Parallel fetch detailed track info to resolve contributors/features
+    const trackDetails = await Promise.all(
+      tracks.map(async (t) => {
+        try {
+          const detailRes = await fetch(`/api/deezer/track/${t.id}`);
+          if (detailRes.ok) {
+            return await detailRes.json();
+          }
+        } catch (err) {
+          // Fallback to basic info
+        }
+        return t;
+      })
+    );
+
+    trackDetails.forEach(t => {
+      let finalT = smartTitleCase(t.title || '');
+      let finalA = t.artist?.name || artist;
+
+      // Extract features from contributors
+      if (t.contributors && t.contributors.length > 1) {
+        const mainArtist = t.artist?.name || artist;
+        const feats = t.contributors
+          .filter(c => c.name.toLowerCase() !== mainArtist.toLowerCase())
+          .map(c => c.name);
+
+        if (feats.length > 0) {
+          finalT = `${finalT} (feat. ${feats.join(' & ')})`;
+          finalA = `${mainArtist} & ${feats.join(' & ')}`;
+        }
+      }
+
       const key = t.title.toLowerCase().replace(/[^a-z0-9]/g, '');
       const shortKey = (t.title_short || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const trackInfo = {
-        title: t.title,
+        title: finalT,
         trackNumber: String(t.track_position || ''),
-        artist: t.artist?.name || artist
+        artist: finalA
       };
       tracklistMap.set(key, trackInfo);
       if (shortKey && !tracklistMap.has(shortKey)) tracklistMap.set(shortKey, trackInfo);

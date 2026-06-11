@@ -147,3 +147,21 @@ function cleanPart(part) {
   cleaned = cleanPromo(cleaned);
   return cleaned.replace(/\s+/g, ' ').trim();
 }
+
+const LOWERCASE_WORDS = new Set(['a','an','the','of','in','on','at','to','for','but','and','or','nor','is','as','by']);
+export function smartTitleCase(text) {
+  if (!text) return text;
+  const stripped = text.replace(/[^a-zA-Z]/g, '');
+  if (stripped.length === 0) return text;
+  const lower = stripped === stripped.toLowerCase();
+  const upper = stripped === stripped.toUpperCase();
+  if (!lower && !upper) return text; // already mixed-case, respect it
+  return text.split(/(\s+)/).map((word, i) => {
+    const clean = word.toLowerCase();
+    if (/\s/.test(word)) return word;
+    if (i === 0 || LOWERCASE_WORDS.has(clean) === false) {
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }
+    return clean;
+  }).join('');
+}
