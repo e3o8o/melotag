@@ -51,6 +51,7 @@ function readTags(filepath) {
       const output = execSync(cmd, { encoding: 'utf8' });
       const info = JSON.parse(output);
       const tags = info.format?.tags || {};
+      const hasArtwork = (info.streams || []).some(s => s.codec_type === 'video');
       return {
         title: tags.title || '',
         artist: tags.artist || '',
@@ -58,7 +59,8 @@ function readTags(filepath) {
         albumArtist: tags.album_artist || tags.artist || '',
         trackNumber: tags.track ? tags.track.split('/')[0] : '',
         year: tags.date ? tags.date.substring(0, 4) : '',
-        genre: tags.genre || ''
+        genre: tags.genre || '',
+        hasArtwork
       };
     } catch (err) {
       console.warn(`  [ffprobe] Failed to read M4A tags for ${path.basename(filepath)}: ${err.message}`);
@@ -66,7 +68,17 @@ function readTags(filepath) {
     }
   } else {
     try {
-      return NodeID3.read(filepath) || {};
+      const tags = NodeID3.read(filepath) || {};
+      return {
+        title: tags.title || '',
+        artist: tags.artist || '',
+        album: tags.album || '',
+        albumArtist: tags.performerInfo || tags.artist || '',
+        trackNumber: tags.trackNumber || '',
+        year: tags.year || '',
+        genre: tags.genre || '',
+        hasArtwork: !!tags.image
+      };
     } catch (err) {
       return {};
     }
@@ -840,7 +852,7 @@ function inferFromFolderName(folderName) {
 }
 
 // Main processing logic
-async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork, tracklistMap, trackNumberMap, globalMetadata) {
+async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork, tracklistMap, trackNumberMap, globalMetadata, isMixedFolder) {
   const ext = path.extname(filepath).toLowerCase();
   if (ext === '.m4a' && !checkFfmpegDependency()) {
     console.error(`  ${colors.red}✗ Error: ffmpeg and ffprobe are required to process M4A (AAC) files. Please install them (e.g., 'brew install ffmpeg').${colors.reset}`);
@@ -853,6 +865,18 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
   } catch (err) {}
 
   const filename = path.basename(filepath);
+  
+  if (isMixedFolder && existingTags.artist && existingTags.title && existingTags.hasArtwork) {
+    let mainArtist = forceArtist || inferredArtist || existingTags.artist;
+    mainArtist = mainArtist.split(/&|,|\band\b/i)[0].trim();
+    const cleanTitle = cleanText(existingTags.title);
+    const expectedFilename = `${mainArtist} - ${cleanTitle}${ext}`.replace(/[\\/*?:"<>|]/g, "");
+    if (filename.toLowerCase() === expectedFilename.toLowerCase()) {
+      console.log(`\n${colors.bright}${colors.green}➜ Skipping (already processed):${colors.reset} ${filename}`);
+      return;
+    }
+  }
+
   const { trackNum, title, featuredArtist } = parseFilename(filename, inferredArtist);
 
   let searchTitle = title;
@@ -1050,7 +1074,7 @@ async function main() {
       process.exit(1);
     }
     console.log(`${colors.bright}${colors.cyan}MeloTag single file processor starting...${colors.reset}`);
-    await processFile(targetPath, forceArtist || "", forceAlbum || "", null, null, null, null);
+    await processFile(targetPath, forceArtist || "", forceAlbum || "", null, null, null, null, false);
     console.log(`\n${colors.bright}${colors.green}✓ Finished tagging file!${colors.reset}\n`);
 
   } else if (stats.isDirectory()) {
@@ -1164,7 +1188,7 @@ async function main() {
     // Process all files
     for (const filename of files.sort()) {
       const filepath = path.join(targetPath, filename);
-      await processFile(filepath, resolvedArtist, resolvedAlbum, albumArtwork, tracklistMap, trackNumberMap, globalMetadata);
+      await processFile(filepath, resolvedArtist, resolvedAlbum, albumArtwork, tracklistMap, trackNumberMap, globalMetadata, isMixedFolder);
     }
 
     console.log(`\n${colors.bright}${colors.green}✓ Finished tagging all ${files.length} files in folder!${colors.reset}\n`);
