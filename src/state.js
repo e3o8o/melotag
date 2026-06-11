@@ -5,7 +5,8 @@ export const state = {
   tracks: [],
   selectedTrackId: null,
   isProcessing: false,
-  selectedTracks: new Set()   // for batch tagging selection mode
+  selectedTracks: new Set(),   // for batch tagging selection mode
+  directoryHandle: null
 };
 
 export const playerState = {

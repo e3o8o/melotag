@@ -9,7 +9,8 @@ import {
   inputGenre, inputYear, inputTrack, inputTrackTotal,
   inputDisc, inputDiscTotal, inputLyrics,
   playerTrackInfo, suggestionsSearchInput,
-  albumContextBar, albumContextLabel
+  albumContextBar, albumContextLabel,
+  welcomeDirBanner, btnSelectWorkingDir
 } from './dom.js';
 import { generateId, inferFromFolderName } from './utils.js';
 import { showModal, updateUI } from './ui.js';
@@ -239,6 +240,10 @@ export async function writeTagsToBuffer(track) {
   track.buffer = mp3tag.buffer;
 
   if (track.handle) {
+    if (state.directoryHandle) {
+      const dirPermission = await verifyPermission(state.directoryHandle, true);
+      if (!dirPermission) throw new Error('Permission denied to save files in the working directory.');
+    }
     const hasPermission = await verifyPermission(track.handle, true);
     if (!hasPermission) throw new Error('Permission denied to save local file.');
     const writable = await track.handle.createWritable();
@@ -311,6 +316,8 @@ export function initFileIOListeners(hasFS) {
     btnOpenFolder.addEventListener('click', async () => {
       try {
         const dirHandle = await window.showDirectoryPicker();
+        state.directoryHandle = dirHandle;
+        await verifyPermission(dirHandle, true);
         // Infer artist & album from folder name, show banner
         const { artist, album } = inferFromFolderName(dirHandle.name);
         setAlbumContext(artist, album);
@@ -320,6 +327,31 @@ export function initFileIOListeners(hasFS) {
         if (err.name !== 'AbortError') console.error('Folder Picker Error:', err);
       }
     });
+
+    if (btnSelectWorkingDir) {
+      btnSelectWorkingDir.addEventListener('click', async () => {
+        try {
+          const dirHandle = await window.showDirectoryPicker();
+          state.directoryHandle = dirHandle;
+          await verifyPermission(dirHandle, true);
+          const { artist, album } = inferFromFolderName(dirHandle.name);
+          setAlbumContext(artist, album);
+          await scanDirectory(dirHandle);
+          updateUI();
+        } catch (err) {
+          if (err.name !== 'AbortError') console.error('Working Folder Picker Error:', err);
+        }
+      });
+    }
+
+    const btnCloseWelcome = document.getElementById('btn-close-welcome-banner');
+    if (btnCloseWelcome) {
+      btnCloseWelcome.addEventListener('click', () => {
+        const banner = document.getElementById('welcome-dir-banner');
+        if (banner) banner.style.display = 'none';
+        sessionStorage.setItem('dismissWelcomeBanner', 'true');
+      });
+    }
   } else {
     // Fallback: use standard file input for files
     btnOpenFiles.addEventListener('click', () => fileInput.click());
@@ -389,6 +421,8 @@ export function initFileIOListeners(hasFS) {
 
           if (handle.kind === 'directory') {
             // Dropped a folder — infer album context and scan it
+            state.directoryHandle = handle;
+            await verifyPermission(handle, true);
             const { artist, album } = inferFromFolderName(handle.name);
             setAlbumContext(artist, album);
             await scanDirectory(handle);

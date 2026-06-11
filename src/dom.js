@@ -143,3 +143,7 @@ export const chkSelectAll = document.getElementById('chk-select-all');
 export const albumContextBar = document.getElementById('album-context-bar');
 export const albumContextLabel = document.getElementById('album-context-label');
 export const btnTagAsAlbum = document.getElementById('btn-tag-as-album');
+
+// Welcome Directory Permission Banner
+export const welcomeDirBanner = document.getElementById('welcome-dir-banner');
+export const btnSelectWorkingDir = document.getElementById('btn-select-working-dir');

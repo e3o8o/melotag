@@ -168,6 +168,17 @@ export function updateUI() {
     if (numEl) numEl.textContent = index + 1;
   });
 
+  // Show/hide welcome working folder banner
+  const welcomeDirBanner = document.getElementById('welcome-dir-banner');
+  if (welcomeDirBanner) {
+    const hasFS = typeof window.showDirectoryPicker === 'function';
+    const isMobile = window.innerWidth <= 768;
+    const currentTab = document.body.className.replace('tab-', '');
+    const dismissed = sessionStorage.getItem('dismissWelcomeBanner') === 'true';
+    const shouldShow = hasFS && !state.directoryHandle && !dismissed && state.tracks.length === 0 && (!isMobile || currentTab === 'library');
+    welcomeDirBanner.style.display = shouldShow ? 'flex' : 'none';
+  }
+
   // Mobile specifics
   syncMobileActionStrip();
 
