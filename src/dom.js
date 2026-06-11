@@ -138,3 +138,8 @@ export const btnBatchAutotag = document.getElementById('btn-batch-autotag');
 export const btnBatchSave = document.getElementById('btn-batch-save');
 export const batchSelectedCount = document.getElementById('batch-selected-count');
 export const chkSelectAll = document.getElementById('chk-select-all');
+
+// Album Context Banner
+export const albumContextBar = document.getElementById('album-context-bar');
+export const albumContextLabel = document.getElementById('album-context-label');
+export const btnTagAsAlbum = document.getElementById('btn-tag-as-album');

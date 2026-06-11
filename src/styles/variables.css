@@ -6,6 +6,7 @@
   --chrome: #F5C518;
   --chrome-dim: #d4a800;
   --chrome-glow: rgba(245, 197, 24, 0.12);
+  --amber: #F5C518;  /* alias for components that use --amber */
 
   /* Dark surfaces */
   --bg-ground: #0E0E0E;

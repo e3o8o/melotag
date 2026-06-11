@@ -55,6 +55,43 @@
         </div>
       </div>
 
+      <!-- Mobile Mini Player (shown inside Library tab on mobile) -->
+      <div class="mobile-mini-player" id="mobile-mini-player">
+        <div class="mini-player-art" id="mini-player-art">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 9.5V20l12-8L7 4"/></svg>
+        </div>
+        <div class="mini-player-info">
+          <div class="mini-player-title" id="mini-player-title">No track playing</div>
+          <div class="mini-player-artist" id="mini-player-artist">Tap to open player</div>
+        </div>
+        <div class="mini-player-controls">
+          <button class="mini-player-next" id="mini-player-prev" title="Previous">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+          </button>
+          <button class="mini-player-play" id="mini-player-play" title="Play/Pause">
+            <svg id="mini-play-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+          </button>
+          <button class="mini-player-next" id="mini-player-next" title="Next">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.25 4.5 15.75 12l-7.5 7.5"/></svg>
+          </button>
+        </div>
+        <div class="mini-player-seek-bar">
+          <div class="mini-player-seek-fill" id="mini-player-seek-fill"></div>
+        </div>
+      </div>
+
+      <!-- Mobile Actions Strip (Auto-Match + Save All on mobile) -->
+      <div class="mobile-actions-strip" id="mobile-actions-strip" style="display:none">
+        <button id="mob-btn-auto-match" class="btn btn-ghost btn-sm" disabled>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15.5 19.5-3.238-2.748L5.647 21l2.647-6.876L3 9.861h6.882L11.974 3l2.214 6.861L21 9.876l-4.765 4.248L18.882 21"/></svg>
+          <span>Auto-Match All</span>
+        </button>
+        <button id="mob-btn-save-all" class="btn btn-amber btn-sm" disabled>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v1.2c0 1.68 0 2.52-.327 3.162a3 3 0 0 1-1.311 1.311C18.72 21 17.88 21 16.2 21H7.8c-1.68 0-2.52 0-3.162-.327a3 3 0 0 1-1.311-1.311C3 18.72 3 17.88 3 16.2V15m14-5-5 5m0 0-5-5m5 5V3"/></svg>
+          <span>Save All</span>
+        </button>
+      </div>
+
       <!-- Drop Zone -->
       <div id="drop-zone" class="drop-zone">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
@@ -98,6 +135,19 @@
             </button>
             <span class="batch-selected-count" id="batch-selected-count">0 selected</span>
           </div>
+
+          <!-- Album Context Banner (shown when a folder is loaded) -->
+          <div class="album-context-bar" id="album-context-bar" style="display: none;">
+            <div class="album-context-info">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 7-1.116-2.231c-.32-.642-.481-.963-.72-1.198a2 2 0 0 0-.748-.462C10.1 3 9.74 3 9.022 3H5.2c-1.68 0-2.52 0-3.162.327a3 3 0 0 0-1.311 1.311C2 5.28 2 6.12 2 7.8v8.4c0 1.68 0 2.52.327 3.162a3 3 0 0 0 1.311 1.311C4.28 21 5.12 21 6.8 21h10.4c1.68 0 2.52 0 3.162-.327a3 3 0 0 0 1.311-1.311C22 18.72 22 17.88 22 16.2V10.8c0-1.68 0-2.52-.327-3.162a3 3 0 0 0-1.311-1.311C19.72 6 18.88 6 17.2 6H13Z"/></svg>
+              <span id="album-context-label">Album mode</span>
+            </div>
+            <button id="btn-tag-as-album" class="btn btn-amber btn-xs" title="Fetch tracklist from Deezer and tag all tracks as an album">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15.5 19.5-3.238-2.748L5.647 21l2.647-6.876L3 9.861h6.882L11.974 3l2.214 6.861L21 9.876l-4.765 4.248L18.882 21"/></svg>
+              <span>Tag as Album</span>
+            </button>
+          </div>
+
           <div class="track-column-headers">
             <span class="track-col-select"><input type="checkbox" id="chk-select-all" title="Select all tracks"></span>
             <span class="track-col-num">#</span>
@@ -107,6 +157,7 @@
           <div id="track-list" class="track-list"></div>
         </div>
     </aside>
+
 
     <!-- Main Area -->
     <main id="main-area" class="main-area">

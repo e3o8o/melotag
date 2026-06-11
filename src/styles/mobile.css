@@ -1,5 +1,5 @@
 /* ============================================
-   Mobile Nav
+   Mobile Nav — bottom tab bar
    ============================================ */
 .mobile-nav {
   display: none;
@@ -10,9 +10,10 @@
   height: 56px;
   background: var(--bg-elevated);
   box-shadow: inset 0 1px 0 0 var(--border);
-  z-index: 100;
-  align-items: center;
+  z-index: 200;
+  align-items: stretch;
   justify-content: space-around;
+  /* Pad for iOS home indicator */
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -27,11 +28,13 @@
   color: var(--text-quaternary);
   font-family: inherit;
   font-size: 9px;
-  font-weight: 500;
-  width: 33.33%;
+  font-weight: 600;
+  flex: 1;
   height: 100%;
   cursor: pointer;
   transition: color 150ms ease;
+  letter-spacing: 0.03em;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .nav-tab.active {
@@ -39,39 +42,26 @@
 }
 
 .nav-tab:active {
-  transform: scale(0.95);
+  opacity: 0.7;
+  transform: scale(0.92);
+  transition: transform 80ms ease, opacity 80ms ease;
 }
 
 /* ============================================
-   Mobile Status Bar & Header
+   Mobile Header — title bar
    ============================================ */
 .mobile-status-bar {
   display: none;
-  height: 44px;
-  padding: 0 16px;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--bg-elevated);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-primary);
-  flex-shrink: 0;
-}
-
-.mobile-status-time {
-  font-weight: 700;
-}
-
-.mobile-status-icons {
-  display: flex;
-  gap: 4px;
-  color: var(--text-secondary);
 }
 
 .mobile-header {
   display: none;
-  height: 48px;
+  position: sticky;
+  top: 0;
+  z-index: 150;
+  height: 52px;
   padding: 0 16px;
+  padding-top: env(safe-area-inset-top, 0px);
   align-items: center;
   gap: 12px;
   background: var(--bg-elevated);
@@ -80,7 +70,7 @@
 }
 
 .mobile-header-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   font-family: 'Space Grotesk', sans-serif;
   color: var(--text-primary);
@@ -88,8 +78,8 @@
 }
 
 .mobile-back-btn {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -97,63 +87,203 @@
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.mobile-back-btn:hover {
+.mobile-back-btn:active {
   background: var(--bg-surface);
 }
 
 /* ============================================
-   Player View (mobile full-screen player)
+   Mobile Mini Player (shown at top of tab-library / tab-editor on mobile)
+   Replaces the oversized now-playing bar
+   ============================================ */
+.mobile-mini-player {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-mini-player {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--bg-elevated);
+    box-shadow: inset 0 -1px 0 0 var(--border);
+    flex-shrink: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 120ms ease;
+  }
+
+  .mobile-mini-player:active {
+    background: var(--bg-surface);
+  }
+
+  .mini-player-art {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    background: var(--bg-surface);
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-quaternary);
+  }
+
+  .mini-player-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mini-player-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mini-player-artist {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 1px;
+  }
+
+  .mini-player-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .mini-player-play {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--chrome);
+    color: #000;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mini-player-play:active {
+    opacity: 0.75;
+    transform: scale(0.92);
+  }
+
+  .mini-player-next {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mini-player-next:active {
+    color: var(--text-primary);
+  }
+
+  .mini-player-seek-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--border);
+    pointer-events: none;
+  }
+
+  .mini-player-seek-fill {
+    height: 100%;
+    background: var(--chrome);
+    width: 0%;
+    transition: width 500ms linear;
+  }
+
+  .mobile-mini-player {
+    position: relative;
+  }
+}
+
+/* ============================================
+   Full-screen Player View (mobile)
    ============================================ */
 .player-view {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   flex: 1;
-  padding: 32px 24px;
+  padding: 24px 20px;
   gap: 20px;
   overflow-y: auto;
-  /* dvh fallback: use vh first, then override with dvh where supported */
-  height: 100vh;
-  height: 100dvh;
+  -webkit-overflow-scrolling: touch;
+  height: 100%;
 }
 
 .pv-artwork {
-  width: 240px;
-  height: 240px;
-  border-radius: 12px;
+  width: clamp(180px, 55vw, 280px);
+  height: clamp(180px, 55vw, 280px);
+  border-radius: 16px;
   background: var(--bg-surface);
   background-size: cover;
   background-position: center;
-  box-shadow: inset 0 0 0 1px var(--border), 0 8px 32px rgba(0,0,0,0.4);
+  box-shadow: inset 0 0 0 1px var(--border), 0 12px 40px rgba(0,0,0,0.45);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-quaternary);
   flex-shrink: 0;
+  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.pv-artwork.playing {
+  transform: scale(1.04);
+  box-shadow: inset 0 0 0 1px var(--border), 0 16px 52px rgba(0,0,0,0.55);
 }
 
 .pv-info {
   text-align: center;
   width: 100%;
+  padding: 0 8px;
 }
 
 .pv-title {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-family: 'Space Grotesk', sans-serif;
 }
 
 .pv-artist {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-secondary);
-  margin-top: 2px;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pv-seek-row {
@@ -161,7 +291,6 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  max-width: 400px;
 }
 
 .pv-time {
@@ -188,28 +317,58 @@
 
 .pv-seek::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--chrome);
   cursor: pointer;
+  box-shadow: 0 0 0 3px rgba(245, 197, 24, 0.2);
 }
 
 .pv-controls {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 20px;
   width: 100%;
+}
+
+/* Larger touch targets on mobile */
+.pv-controls .btn-control {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+
+.btn-play {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: var(--chrome);
+  color: #000;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(245,197,24,0.35);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-play:active {
+  transform: scale(0.92);
+  box-shadow: 0 2px 8px rgba(245,197,24,0.25);
 }
 
 .pv-volume-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  max-width: 200px;
+  max-width: 220px;
 }
 
 .pv-volume {
@@ -225,8 +384,8 @@
 
 .pv-volume::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--chrome);
   cursor: pointer;
@@ -234,22 +393,31 @@
 
 .pv-lyrics {
   width: 100%;
-  max-width: 400px;
-  max-height: 120px;
+  max-height: 100px;
   overflow-y: auto;
   text-align: center;
   font-size: 13px;
+  line-height: 1.6;
   color: var(--text-secondary);
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 .pv-lyrics::-webkit-scrollbar {
   display: none;
 }
 
+/* Swipe indicator dots (shows which tab you're on) */
+.pv-swipe-hint {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  margin-top: auto;
+  padding-bottom: 4px;
+}
+
 /* ============================================
-   iPad Mini Breakpoint (744px+)
-   Ensures iPad Mini gets tablet layout, not phone
+   iPad Mini Breakpoint (744px–768px)
    ============================================ */
 @media (min-width: 744px) and (max-width: 768px) {
   :root {
@@ -287,12 +455,22 @@
     display: flex;
   }
 
+  /* Compact now-playing on iPad Mini */
+  .np-main-row {
+    height: 56px;
+  }
+
+  .np-artwork {
+    width: 40px;
+    height: 40px;
+  }
+
   .np-left {
     width: 160px;
   }
 
   .np-right {
-    width: 160px;
+    width: 140px;
   }
 
   .np-right .now-playing-visualizer {
@@ -314,12 +492,12 @@
   }
 
   .col-artwork {
-    flex: 0 0 180px;
+    flex: 0 0 160px;
   }
 
   .col-form {
     flex: 1;
-    min-width: 240px;
+    min-width: 220px;
   }
 
   .col-suggestions {
@@ -330,7 +508,7 @@
   }
 
   .suggestions-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
 
   .np-queue-panel {
@@ -344,7 +522,7 @@
 }
 
 /* ============================================
-   Tablet Layout
+   Tablet Layout (769px–1024px)
    ============================================ */
 @media (min-width: 769px) and (max-width: 1024px) {
   :root {
@@ -404,16 +582,23 @@
 }
 
 /* ============================================
-   Mobile Layout
+   Mobile Layout (≤768px)
    ============================================ */
 @media (max-width: 768px) {
+  /* Base layout */
   .app {
     flex-direction: column;
-    padding-bottom: 56px;
+    /* Bottom nav (56px) + home indicator handled by safe-area */
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    /* Top safe area handled per header */
+    padding-top: env(safe-area-inset-top, 0px);
   }
 
   .app-body {
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .sidebar {
@@ -421,11 +606,23 @@
     min-width: 100% !important;
     border-right: none;
     height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   .main-area {
     height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Editor tab gets scrollable inner content */
+  .editor-column {
+    flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .inspector-content {
@@ -436,24 +633,27 @@
 
   .inspector-columns {
     flex-direction: column;
+    gap: 16px;
   }
 
   .col-artwork {
     flex: none;
-    max-width: 200px;
+    max-width: 180px;
     align-self: center;
   }
 
   .col-form {
     flex: none;
+    width: 100%;
   }
 
   .col-suggestions {
     flex: none;
+    width: 100%;
   }
 
   .artwork-frame {
-    max-width: 260px;
+    max-width: 180px;
     margin: 0 auto;
   }
 
@@ -461,71 +661,78 @@
     grid-template-columns: 1fr;
   }
 
-  .pv-artwork {
-    width: min(280px, 60vw);
-    height: min(280px, 60vw);
-  }
-
-  .pv-controls {
-    gap: 12px;
-  }
-
-  .pv-seek-row {
-    max-width: none;
-  }
-
-  .pv-volume-row {
-    max-width: 160px;
-  }
-
-  .player-view {
-    padding: 20px 16px;
-    gap: 14px;
-  }
-
-  .pv-title {
-    font-size: 15px;
-  }
-
-  .pv-artist {
-    font-size: 12px;
-  }
-
-  /* Hide mobile chrome that duplicates real device UI */
-  .mobile-status-bar {
-    display: none;
-  }
-
+  /* ---- Mobile Header ---- */
   .mobile-header {
     display: flex;
   }
 
-  /* Hide sidebar header on mobile (mobile header shows the title) */
+  /* Sidebar header is redundant on mobile (mobile-header takes over) */
   .sidebar-header {
     display: none;
   }
 
-  /* Reduce sidebar top padding since header is gone */
-  .drop-zone {
-    margin-top: 8px;
-  }
-
-  /* Hide now-playing bar on mobile */
+  /* No big now-playing bar on mobile */
   .now-playing-bar {
-    display: none;
+    display: none !important;
   }
 
-  /* Hide queue panel on mobile (shown in player tab) */
   .np-queue-panel {
     display: none !important;
   }
 
-  /* Hide column headers on mobile */
+  /* No column headers on mobile track list */
   .track-column-headers {
     display: none;
   }
 
-  /* Tab visibility logic */
+  /* Drop zone smaller on mobile */
+  .drop-zone {
+    margin-top: 4px;
+    padding: 16px 12px;
+    min-height: 72px;
+  }
+
+  .drop-zone p {
+    font-size: 13px;
+  }
+
+  .drop-zone span {
+    font-size: 11px;
+  }
+
+  /* Picker bar more compact */
+  .picker-bar {
+    padding: 6px 12px;
+    gap: 8px;
+  }
+
+  /* Search wrap */
+  .search-wrap {
+    margin: 4px 12px 2px;
+  }
+
+  /* Track list fills remaining space */
+  .track-list-container {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .track-list {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Bigger track item touch targets */
+  .track-item {
+    min-height: 60px;
+    padding: 8px 12px;
+  }
+
+  /* ---- Tab visibility ---- */
   body.tab-library .sidebar { display: flex !important; }
   body.tab-library .main-area { display: none !important; }
 
@@ -539,13 +746,40 @@
   body.tab-editor .player-column { display: none !important; }
   body.tab-editor .editor-column { display: flex !important; }
 
+  /* ---- Mobile nav ---- */
   .mobile-nav {
     display: flex;
+  }
+
+  /* ---- Batch actions bar adapts on mobile ---- */
+  .batch-actions-bar {
+    margin: 4px 8px;
+  }
+
+  .album-context-bar {
+    margin: 4px 8px;
+  }
+
+  /* ---- Editor header compact ---- */
+  .editor-header {
+    padding: 12px 16px 8px;
+  }
+
+  .editor-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* Make Save / Magic buttons full-width on mobile editor */
+  .editor-actions .btn-save,
+  .editor-actions .btn-magic,
+  .editor-actions .btn-download {
+    flex: 1;
   }
 }
 
 /* ============================================
-   Small Mobile (< 480px) — Stack form rows
+   Small Mobile (<480px) — stack form rows
    ============================================ */
 @media (max-width: 480px) {
   .form-row {
@@ -555,35 +789,67 @@
   .form-group-full {
     grid-column: span 1;
   }
+
+  .pv-title {
+    font-size: 16px;
+  }
+
+  .pv-controls {
+    gap: 14px;
+  }
+
+  .btn-play {
+    width: 54px;
+    height: 54px;
+  }
 }
 
 /* ============================================
-   Short Mobile Screens
+   Very short screens (landscape phone)
    ============================================ */
-@media (max-width: 768px) and (max-height: 700px) {
+@media (max-width: 768px) and (max-height: 600px) {
   .player-view {
-    padding: 12px 12px;
+    padding: 10px 16px;
     gap: 10px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
   }
 
   .pv-artwork {
-    width: min(130px, 35vw);
-    height: min(130px, 35vw);
+    width: clamp(100px, 30vw, 140px);
+    height: clamp(100px, 30vw, 140px);
+    border-radius: 10px;
+  }
+
+  .pv-info {
+    flex: 1;
+    text-align: left;
+    padding: 0;
   }
 
   .pv-title {
     font-size: 14px;
   }
 
-  .pv-controls {
-    gap: 10px;
+  .pv-artist {
+    font-size: 12px;
   }
 
-  .pv-volume-row {
-    max-width: 130px;
+  .pv-seek-row,
+  .pv-controls,
+  .pv-volume-row,
+  .pv-lyrics {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .pv-controls {
+    gap: 12px;
   }
 
   .pv-lyrics {
-    max-height: 60px;
+    max-height: 48px;
   }
 }

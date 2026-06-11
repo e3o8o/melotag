@@ -258,3 +258,45 @@ export async function fetchUnifiedSuggestions(query) {
 
   return { results: mergedResults, error: combinedError };
 }
+
+// --- Album Context Fetch (Deezer tracklist + cover art) ---
+// Returns { tracklistMap: Map<normalizedKey, {title, artist, trackNumber}>, artworkUrl: string|null }
+export async function fetchAlbumContext(artist, album) {
+  const tracklistMap = new Map();
+  let artworkUrl = null;
+  const query = `${artist} ${album}`.trim();
+  if (!query) return { tracklistMap, artworkUrl };
+
+  try {
+    const res = await fetch(`/api/deezer/search/album?q=${encodeURIComponent(query)}`);
+    if (!res.ok) return { tracklistMap, artworkUrl };
+    const data = await res.json();
+    const albums = data.data || [];
+    if (albums.length === 0) return { tracklistMap, artworkUrl };
+
+    const albumInfo = albums[0];
+    artworkUrl = albumInfo.cover_xl || albumInfo.cover_big || albumInfo.cover_medium || null;
+    const albumId = albumInfo.id;
+
+    const tracksRes = await fetch(`/api/deezer/album/${albumId}/tracks`);
+    if (!tracksRes.ok) return { tracklistMap, artworkUrl };
+    const tracksData = await tracksRes.json();
+    const tracks = tracksData.data || [];
+
+    tracks.forEach(t => {
+      const key = t.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const shortKey = (t.title_short || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const trackInfo = {
+        title: t.title,
+        trackNumber: String(t.track_position || ''),
+        artist: t.artist?.name || artist
+      };
+      tracklistMap.set(key, trackInfo);
+      if (shortKey && !tracklistMap.has(shortKey)) tracklistMap.set(shortKey, trackInfo);
+    });
+  } catch (err) {
+    console.warn('fetchAlbumContext failed:', err);
+  }
+
+  return { tracklistMap, artworkUrl };
+}

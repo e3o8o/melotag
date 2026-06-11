@@ -1,5 +1,95 @@
 // MeloTag — Utility Functions
 
+// --- Promo keyword cleaner ---
+// Matches full domains, brand names, and partial suffix variants like "xclusive"
+const PROMO_PATTERNS = [
+  // Full domain variants first (most specific)
+  /xtooxclusive\.com/gi,
+  /tooxclusive\.com/gi,
+  /notjustok\.com/gi,
+  /mp3bullet\.ng/gi,
+  /waploaded\.com/gi,
+  /naijaloaded\.com/gi,
+  /9jaflaver\.com/gi,
+  /fakaza\.com/gi,
+  /djitunez\.com/gi,
+  /ghkwaku\.com/gi,
+  /freshpilot\.com/gi,
+  /zamusic\.com/gi,
+  /mdundo\.com/gi,
+  /boomplay\.com/gi,
+
+  // Brand names without TLD
+  /xtooxclusive/gi,
+  /tooxclusive/gi,
+  /notjustok/gi,
+  /mp3bullet/gi,
+  /waploaded/gi,
+  /naijaloaded/gi,
+  /9jaflaver/gi,
+  /djitunez/gi,
+  /ghkwaku/gi,
+  /freshpilot/gi,
+  /fakaza/gi,
+  /zamusic/gi,
+
+  // Partial suffix variants — things like "xclusive", "xclusivez", "xclusives"
+  /\bxclusiv(?:e|es|ez)?\b/gi,
+
+  // Generic promotional phrases
+  /\bfree\s*mp3\b/gi,
+  /\bdownload\b/gi,
+  /\bpromo\b/gi,
+  /\bexclusive\b/gi,
+
+  // Bracket/paren wrapped promo — e.g. "[XclusivePromo]", "(Waploaded.com)"
+  /[\[(][^\]()]*(?:xclusive|promo|download|waploaded|naijaloaded|tooxclusive|notjustok|mp3)[^\]()]*[\])]/gi,
+];
+
+export function cleanPromo(text) {
+  if (!text) return '';
+  let out = text;
+  PROMO_PATTERNS.forEach(p => { out = out.replace(p, ''); });
+  // Remove empty brackets/parens left behind
+  out = out.replace(/\s*\[\s*\]\s*/g, '').replace(/\s*\(\s*\)\s*/g, '');
+  // Clean up separators left at end/start after stripping
+  out = out.replace(/\s*[-_|]\s*$/, '').replace(/^\s*[-_|]\s*/, '');
+  // Normalize whitespace
+  out = out.replace(/\s+/g, ' ').trim();
+  return out;
+}
+
+// --- Parse featured artist from title ---
+// Returns { baseTitle, featuredArtist }
+export function parseFeaturedArtist(title) {
+  if (!title) return { baseTitle: title, featuredArtist: '' };
+  // Patterns: (feat. X), [feat. X], ft. X, featuring X
+  const match = title.match(/\s*[\[(]?\b(?:feat(?:uring)?|ft)\.?\s+([^\]\)]+?)[\])]?\s*$/i);
+  if (match) {
+    const featuredArtist = match[1].trim();
+    const baseTitle = title.slice(0, match.index).trim();
+    return { baseTitle, featuredArtist };
+  }
+  return { baseTitle: title, featuredArtist: '' };
+}
+
+// --- Infer artist and album from folder name ---
+export function inferFromFolderName(folderName) {
+  const parts = folderName.split(/[-_]+/);
+  let artist = '';
+  let album = '';
+  if (parts.length >= 2) {
+    artist = parts[0].trim();
+    album = parts.slice(1).join(' ').replace(/album/gi, '').trim();
+  } else {
+    album = folderName.replace(/album/gi, '').trim();
+  }
+  return {
+    artist: cleanPromo(artist),
+    album: cleanPromo(album)
+  };
+}
+
 export function generateId() {
   return 'track-' + Math.random().toString(36).substr(2, 9);
 }
@@ -17,10 +107,14 @@ export function formatTime(seconds) {
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
-// Smart Filename Parser
+// Smart Filename Parser — strips promo junk then splits into artist / title
 export function parseMessyFilename(filename) {
-  let name = filename.replace(/\.[^/.]+$/, "");
+  let name = filename.replace(/\.[^/.]+$/, '');
 
+  // Strip promo tags first (before splitting by dash)
+  name = cleanPromo(name);
+
+  // Strip audio/video quality markers
   name = name.replace(/\(official\s*(video|audio|lyrics|music)?\s*\)/gi, '');
   name = name.replace(/\[official\s*(video|audio|lyrics|music)?\s*\]/gi, '');
   name = name.replace(/\b(128|192|320)kbps\b/gi, '');
@@ -28,6 +122,7 @@ export function parseMessyFilename(filename) {
   name = name.replace(/\b(HQ|HD|4K)\b/g, '');
 
   let parts = name.split(/\s*-\s*|\s*–\s*|\s*—\s*/);
+  // Drop any part that looks like a bare domain name
   const domainRegex = /\b([a-zA-Z0-9-]+\.[a-zA-Z]{2,6})\b/i;
   parts = parts.filter(part => !domainRegex.test(part));
 
@@ -41,12 +136,14 @@ export function parseMessyFilename(filename) {
     title = cleanPart(parts[0]);
   }
 
-  return { artist, title };
+  // Final promo pass on each output
+  return { artist: cleanPromo(artist), title: cleanPromo(title) };
 }
 
 function cleanPart(part) {
   if (!part) return '';
   let cleaned = part.replace(/^[\s\d._-]+/, '');
   cleaned = cleaned.replace(/\s*[([].*?[\])]\s*/g, ' ');
+  cleaned = cleanPromo(cleaned);
   return cleaned.replace(/\s+/g, ' ').trim();
 }

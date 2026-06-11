@@ -8,13 +8,15 @@ import {
   inputTitle, inputArtist, inputAlbum, inputAlbumArtist,
   inputGenre, inputYear, inputTrack, inputTrackTotal,
   inputDisc, inputDiscTotal, inputLyrics,
-  playerTrackInfo, suggestionsSearchInput
+  playerTrackInfo, suggestionsSearchInput,
+  albumContextBar, albumContextLabel
 } from './dom.js';
-import { generateId } from './utils.js';
+import { generateId, inferFromFolderName } from './utils.js';
 import { showModal, updateUI } from './ui.js';
 import { parseLRC, renderSyncedLyrics } from './lyrics.js';
 import { renderTrackListItem, updateTrackListItemUI, selectTrack, renderArtworkPreview } from './tracks.js';
 import { triggerSearch } from './suggestions.js';
+import { albumContext } from './auto-tag.js';
 
 // --- Parse MP3 Tag ---
 async function parseTrack(track) {
@@ -122,6 +124,22 @@ async function handleStandardFiles(filesList) {
     await addTrackObject(file, null);
   }
   updateUI();
+}
+
+// --- Set/Clear Album Context Banner ---
+function setAlbumContext(artist, album) {
+  albumContext.artist = artist;
+  albumContext.album = album;
+  albumContext.tracklistMap = null;
+  albumContext.artworkUrl = null;
+  if (albumContextBar && albumContextLabel) {
+    if (artist || album) {
+      albumContextLabel.textContent = `« ${artist || '?'} — ${album || '?'} »`;
+      albumContextBar.style.display = 'flex';
+    } else {
+      albumContextBar.style.display = 'none';
+    }
+  }
 }
 
 // --- Scan Directory ---
@@ -260,6 +278,9 @@ export function initFileIOListeners(hasFS) {
     btnOpenFolder.addEventListener('click', async () => {
       try {
         const dirHandle = await window.showDirectoryPicker();
+        // Infer artist & album from folder name, show banner
+        const { artist, album } = inferFromFolderName(dirHandle.name);
+        setAlbumContext(artist, album);
         await scanDirectory(dirHandle);
         updateUI();
       } catch (err) {

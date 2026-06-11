@@ -90,6 +90,8 @@ export function updateNowPlayingBar(track) {
     nowPlayingBar.style.display = 'none';
     if (pvTitle) pvTitle.textContent = 'No track selected';
     if (pvArtist) pvArtist.textContent = '';
+    // Clear mini player
+    import('./ui.js').then(({ updateMiniPlayer }) => updateMiniPlayer(null));
     return;
   }
   nowPlayingBar.style.display = 'flex';
@@ -122,6 +124,9 @@ export function updateNowPlayingBar(track) {
     if (pvCurrentTime) pvCurrentTime.textContent = '0:00';
     if (pvTotalTime) pvTotalTime.textContent = formatTime(audioElement.duration);
   }
+
+  // Sync mini player (mobile)
+  import('./ui.js').then(({ updateMiniPlayer }) => updateMiniPlayer(track));
 }
 
 // --- Load Track ---

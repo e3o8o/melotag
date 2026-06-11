@@ -2,20 +2,87 @@
 import { state } from './state.js';
 import {
   btnMagic, btnAutoMatchAll, btnSaveAll, successOverlay,
-  btnBatchAutotag, btnBatchSave
+  btnBatchAutotag, btnBatchSave, btnTagAsAlbum
 } from './dom.js';
-import { parseMessyFilename } from './utils.js';
+import { parseMessyFilename, cleanPromo, parseFeaturedArtist } from './utils.js';
 import { showModal, updateUI } from './ui.js';
-import { fetchUnifiedSuggestions, fetchLyricsFromLRCLIB } from './api.js';
+import { fetchUnifiedSuggestions, fetchLyricsFromLRCLIB, fetchAlbumContext } from './api.js';
 import { writeTagsToBuffer, triggerDownload } from './file-io.js';
 import { selectTrack, updateTrackListItemUI, updateSelectionUI } from './tracks.js';
 
+// Album-level context (set when a folder is loaded)
+export const albumContext = { artist: '', album: '', tracklistMap: null, artworkUrl: null };
+
+// --- Apply cover art from URL ---
+async function applyCoverArtFromUrl(track, artUrl) {
+  if (!artUrl) return;
+  try {
+    const res = await fetch(artUrl);
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const mime = blob.type || 'image/jpeg';
+    if (track.coverArt && track.coverArt.url) URL.revokeObjectURL(track.coverArt.url);
+    track.coverArt = { data: uint8Array, format: mime, url: URL.createObjectURL(blob) };
+  } catch (err) {
+    console.warn('Cover art download failed:', err);
+  }
+}
+
 // --- Magic Auto-Tag Core ---
 export async function magicAutoTagTrack(track) {
+  // --- 1. Try album tracklist match first (if a folder/album context is active) ---
+  if (albumContext.tracklistMap && albumContext.tracklistMap.size > 0) {
+    const rawName = track.name.replace(/\.[^/.]+$/, '');
+    // Strip leading track number
+    const stripped = rawName.replace(/^\d+\s*[.\-_]?\s*/, '');
+    // Strip artist prefix
+    const withoutArtist = albumContext.artist
+      ? stripped.replace(new RegExp(`^${albumContext.artist}\\s*[.\\-_]?\\s*`, 'i'), '')
+      : stripped;
+    // Get base title before any featured artist markers
+    const baseTitleRaw = withoutArtist.split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
+    const normKey = cleanPromo(baseTitleRaw).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    if (albumContext.tracklistMap.has(normKey)) {
+      const official = albumContext.tracklistMap.get(normKey);
+
+      // Parse featured artist from official title if present
+      const { baseTitle, featuredArtist } = parseFeaturedArtist(official.title);
+      track.title = featuredArtist ? `${baseTitle} (feat. ${featuredArtist})` : official.title;
+      track.artist = featuredArtist ? `${official.artist} & ${featuredArtist}` : official.artist;
+      track.albumArtist = albumContext.artist || official.artist;
+      track.album = albumContext.album || track.album;
+      track.trackNumber = official.trackNumber || track.trackNumber;
+
+      // Use album-level artwork
+      if (!track.coverArt && albumContext.artworkUrl) {
+        await applyCoverArtFromUrl(track, albumContext.artworkUrl);
+      }
+
+      // Try lyrics for matched track
+      try {
+        const lyrics = await fetchLyricsFromLRCLIB(track.title, official.artist);
+        if (lyrics) track.lyrics = lyrics;
+      } catch (err) {
+        console.warn('LRCLIB lyrics fetch failed:', err);
+      }
+
+      const savedInPlace = await writeTagsToBuffer(track);
+      track.status = savedInPlace ? 'saved' : 'modified';
+      if (state.selectedTrackId === track.id) selectTrack(track.id);
+      else updateTrackListItemUI(track);
+      updateUI();
+      return;
+    }
+  }
+
+  // --- 2. Fallback: unified search (iTunes + Deezer + MusicBrainz) ---
   const { artist, title } = parseMessyFilename(track.name);
   let query = '';
   if (artist && title) query = `${artist} - ${title}`;
-  else query = artist || title || track.name.replace(/\.[^/.]+$/, "");
+  else query = artist || title || track.name.replace(/\.[^/.]+$/, '');
 
   const { results, error } = await fetchUnifiedSuggestions(query);
   if (error) throw new Error(error);
@@ -23,9 +90,12 @@ export async function magicAutoTagTrack(track) {
 
   const match = results[0];
 
-  track.title = match.trackName || '';
-  track.artist = match.artistName || '';
-  track.album = match.collectionName || '';
+  // Parse featured artist from match title
+  const { baseTitle: matchBase, featuredArtist: matchFeat } = parseFeaturedArtist(match.trackName || '');
+  track.title = matchFeat ? `${matchBase} (feat. ${matchFeat})` : (match.trackName || '');
+  track.artist = matchFeat ? `${match.artistName} & ${matchFeat}` : (match.artistName || '');
+  track.albumArtist = match.artistName || '';
+  track.album = albumContext.album || match.collectionName || '';
   track.genre = match.primaryGenreName || '';
   track.year = (match.releaseDate && match.releaseDate.length >= 4) ? match.releaseDate.substring(0, 4) : '';
   track.trackNumber = match.trackNumber || '';
@@ -41,26 +111,16 @@ export async function magicAutoTagTrack(track) {
     console.warn('LRCLIB auto lyrics fetch failed:', err);
   }
 
-  // Download high-res cover art
-  const highResArt = match.artworkUrlHigh || match.artworkUrl100 || '';
-  if (highResArt) {
-    try {
-      const res = await fetch(highResArt);
-      const blob = await res.blob();
-      const arrayBuffer = await blob.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      const mime = blob.type || 'image/jpeg';
-
-      if (track.coverArt && track.coverArt.url) URL.revokeObjectURL(track.coverArt.url);
-      track.coverArt = {
-        data: uint8Array,
-        format: mime,
-        url: URL.createObjectURL(blob)
-      };
-    } catch (err) {
-      console.warn('Cover art download failed:', err);
-    }
+  // Download high-res cover art (prefer album art if context has it)
+  const artUrl = albumContext.artworkUrl || match.artworkUrlHigh || match.artworkUrl100 || '';
+  if (!track.coverArt && artUrl) {
+    await applyCoverArtFromUrl(track, artUrl);
   }
+
+  // Clean promo junk
+  track.title = cleanPromo(track.title);
+  track.artist = cleanPromo(track.artist);
+  track.album = cleanPromo(track.album);
 
   const savedInPlace = await writeTagsToBuffer(track);
   track.status = savedInPlace ? 'saved' : 'modified';
@@ -71,6 +131,34 @@ export async function magicAutoTagTrack(track) {
     updateTrackListItemUI(track);
   }
   updateUI();
+}
+
+// --- Album Auto-Tag: fetch album context then tag all tracks ---
+export async function albumAutoTagTracks(tracks, artist, album) {
+  // Store context so individual track tagging can use it
+  albumContext.artist = artist;
+  albumContext.album = album;
+  albumContext.tracklistMap = null;
+  albumContext.artworkUrl = null;
+
+  if (artist || album) {
+    const ctx = await fetchAlbumContext(artist, album);
+    albumContext.tracklistMap = ctx.tracklistMap;
+    albumContext.artworkUrl = ctx.artworkUrl;
+  }
+
+  let successCount = 0;
+  let failCount = 0;
+  for (const track of tracks) {
+    try {
+      await magicAutoTagTrack(track);
+      successCount++;
+    } catch (err) {
+      console.error(`Album auto-tag failed for ${track.name}:`, err);
+      failCount++;
+    }
+  }
+  return { successCount, failCount };
 }
 
 // --- Init Auto-Tag Listeners ---
@@ -243,6 +331,34 @@ export function initAutoTagListeners() {
       if (inPlaceSaved > 0) msg += `\n- ${inPlaceSaved} files updated directly in-place.`;
       if (downloadsTriggered > 0) msg += `\n- ${downloadsTriggered} files downloaded manually.`;
       showModal('Save Complete', msg);
+    });
+  }
+
+  // Tag as Album (folder context)
+  if (btnTagAsAlbum) {
+    btnTagAsAlbum.addEventListener('click', async () => {
+      if (state.tracks.length === 0 || state.isProcessing) return;
+
+      state.isProcessing = true;
+      btnTagAsAlbum.disabled = true;
+      const origText = btnTagAsAlbum.innerHTML;
+      btnTagAsAlbum.innerHTML = `<div class="spinner" style="width:12px;height:12px;border-width:1.5px"></div><span>Fetching...</span>`;
+
+      const { successCount, failCount } = await albumAutoTagTracks(
+        state.tracks,
+        albumContext.artist,
+        albumContext.album
+      );
+
+      state.isProcessing = false;
+      btnTagAsAlbum.disabled = false;
+      btnTagAsAlbum.innerHTML = origText;
+      updateUI();
+      showModal(
+        'Album Tag Complete',
+        `Tagged ${successCount} track${successCount !== 1 ? 's' : ''} as part of «${albumContext.album || 'the album'}».` +
+        (failCount > 0 ? `\n${failCount} track(s) could not be matched.` : '')
+      );
     });
   }
 }
