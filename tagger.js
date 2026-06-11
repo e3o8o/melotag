@@ -666,7 +666,9 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
     }
 
     if (shouldRename) {
-      let newFilename = `${finalArtist} - ${finalTitle}.mp3`;
+      let mainArtist = forceArtist || inferredArtist || finalArtist;
+      mainArtist = mainArtist.split(/\b(?:&|and|,)\b/i)[0].trim();
+      let newFilename = `${mainArtist} - ${finalTitle}.mp3`;
 
       newFilename = newFilename.replace(/[\\/*?:"<>|]/g, "");
       const newFilepath = path.join(path.dirname(filepath), newFilename);
