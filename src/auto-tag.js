@@ -44,9 +44,20 @@ export async function magicAutoTagTrack(track) {
     // Get base title before any featured artist markers
     const baseTitleRaw = withoutArtist.split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
     const normKey = cleanPromo(baseTitleRaw).toLowerCase().replace(/[^a-z0-9]/g, '');
-
+    let official = null;
     if (albumContext.tracklistMap.has(normKey)) {
-      const official = albumContext.tracklistMap.get(normKey);
+      official = albumContext.tracklistMap.get(normKey);
+    } else {
+      // Substring match fallback
+      for (const [key, val] of albumContext.tracklistMap.entries()) {
+        if (key.length >= 4 && (normKey.includes(key) || key.includes(normKey))) {
+          official = val;
+          break;
+        }
+      }
+    }
+
+    if (official) {
 
       // Parse featured artist from official title if present
       const { baseTitle, featuredArtist } = parseFeaturedArtist(official.title);

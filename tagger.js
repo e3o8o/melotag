@@ -201,14 +201,13 @@ async function downloadArtwork(url) {
 
 // Infer Album and Artist from folder name (e.g., "Fola-Catharsis-Album")
 function inferFromFolderName(folderName) {
+  const parts = folderName.split(/[-_]+/);
   let artist = "";
   let album = "";
 
-  // Split by hyphens or underscores
-  const parts = folderName.split(/[-_]+/);
   if (parts.length >= 2) {
     artist = parts[0].trim();
-    album = parts[1].replace(/album/gi, "").trim();
+    album = parts.slice(1).join(" ").replace(/album/gi, "").trim();
   } else {
     album = folderName.replace(/album/gi, "").trim();
   }
@@ -251,6 +250,18 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
     finalArtist = official.artist;
     finalTrack = official.trackNumber;
     matchedOfficial = true;
+  } else if (tracklistMap) {
+    // Try matching if the tracklist key is contained in the filename's normKey (or vice-versa)
+    for (const [key, official] of tracklistMap.entries()) {
+      if (key.length >= 4 && (normKey.includes(key) || key.includes(normKey))) {
+        console.log(`  ${colors.green}✓ Matched official album tracklist via substring! (${official.title})${colors.reset}`);
+        finalTitle = smartTitleCase(official.title);
+        finalArtist = official.artist;
+        finalTrack = official.trackNumber;
+        matchedOfficial = true;
+        break;
+      }
+    }
   }
 
   // Fetch from iTunes as fallback/supplement
@@ -384,6 +395,8 @@ async function main() {
     let albumArtwork = null;
     let tracklistMap = new Map();
     const albumQuery = `${inferredArtist} ${inferredAlbum}`;
+    let resolvedArtist = inferredArtist;
+    let resolvedAlbum = inferredAlbum;
     
     try {
       const albumSearchRes = await fetch(`https://api.deezer.com/search/album?q=${encodeURIComponent(albumQuery)}`);
@@ -392,6 +405,9 @@ async function main() {
         const albums = searchData.data || [];
         if (albums.length > 0) {
           const albumId = albums[0].id;
+          resolvedArtist = forceArtist || albums[0].artist?.name || inferredArtist;
+          resolvedAlbum = forceAlbum || albums[0].title || inferredAlbum;
+
           const artUrl = albums[0].cover_xl || albums[0].cover_big || albums[0].cover;
           if (artUrl) {
             console.log(`${colors.green}Found album cover art on Deezer: ${artUrl}${colors.reset}`);
@@ -422,11 +438,11 @@ async function main() {
 
             trackDetails.forEach(t => {
               let finalT = smartTitleCase(t.title || "");
-              let finalA = t.artist?.name || inferredArtist;
+              let finalA = t.artist?.name || resolvedArtist;
 
               // Extract features from contributors
               if (t.contributors && t.contributors.length > 1) {
-                const mainArtist = t.artist?.name || inferredArtist;
+                const mainArtist = t.artist?.name || resolvedArtist;
                 const feats = t.contributors
                   .filter(c => c.name.toLowerCase() !== mainArtist.toLowerCase())
                   .map(c => c.name);
@@ -462,7 +478,7 @@ async function main() {
     // Process all MP3 files
     for (const filename of files.sort()) {
       const filepath = path.join(targetPath, filename);
-      await processFile(filepath, inferredArtist, inferredAlbum, albumArtwork, tracklistMap);
+      await processFile(filepath, resolvedArtist, resolvedAlbum, albumArtwork, tracklistMap);
     }
 
     console.log(`\n${colors.bright}${colors.green}✓ Finished tagging all ${files.length} files in folder!${colors.reset}\n`);
