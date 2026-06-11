@@ -301,17 +301,28 @@ function parseFilename(filename, inferredArtist) {
   // Clean leading symbols
   title = title.replace(/^[\s\.\-_]+/, "").trim();
 
-  // If the title starts with "ft" or "feat", parse the featured artist and base title
+  // Match features in parenthesized/bracketed format or standalone in the title
   let featuredArtist = "";
-  if (title.toLowerCase().startsWith("ft ") || title.toLowerCase().startsWith("feat ")) {
-    const ftMatch = title.match(/^(?:ft|feat)\s+(.+?)\s+(.+)$/i);
-    if (ftMatch) {
-      featuredArtist = ftMatch[1].trim();
-      title = ftMatch[2].trim();
-      
-      // Capitalize featured artist name nicely
-      featuredArtist = featuredArtist.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  const parenFtRegex = /[\(\[]\s*\b(?:ft|feat|featuring)\b\.?\s+([^\)\]]+)[\)\]]/i;
+  const ftRegex = /\b(?:ft|feat|featuring)\b\.?\s+(.+)$/i;
+
+  let matchFt = title.match(parenFtRegex);
+  if (matchFt) {
+    featuredArtist = matchFt[1].trim();
+    title = title.replace(parenFtRegex, "").trim();
+  } else {
+    matchFt = title.match(ftRegex);
+    if (matchFt) {
+      featuredArtist = matchFt[1].trim();
+      title = title.replace(ftRegex, "").trim();
     }
+  }
+
+  // Clean title trailing symbols
+  title = title.replace(/^[\s\.\-_]+|[\s\.\-_]+$/, "").trim();
+
+  if (featuredArtist) {
+    featuredArtist = smartTitleCase(featuredArtist);
   }
 
   return { trackNum, title, featuredArtist };
@@ -606,6 +617,7 @@ async function fetchTrackMetadata(artist, title) {
           const coverUrl = item.album?.cover_xl || item.album?.cover_big || item.album?.cover_medium || '';
           candidates.push({
             source: 'Deezer',
+            id: String(item.id),
             title: item.title || '',
             artist: item.artist?.name || '',
             album: item.album?.title || '',
@@ -882,12 +894,31 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
   let searchTitle = title;
   let searchArtist = forceArtist || inferredArtist || existingTags.artist || "";
 
-  // If the file already has tags, use them as search hints
-  if (existingTags.title && !cleanText(existingTags.title).toLowerCase().includes("promo")) {
-    searchTitle = cleanText(smartTitleCase(existingTags.title));
+  // If the file already has tags, use them as search hints if they don't mismatch the filename significantly
+  let useTags = true;
+  if (existingTags.title && title) {
+    const isFilenameGeneric = /^track\s*\d+$/i.test(title.trim()) || /untitled/i.test(title) || /unknown/i.test(title) || /^audiotrack\d+$/i.test(title.trim());
+    if (!isFilenameGeneric) {
+      const fileTitleClean = cleanKey(title);
+      const tagTitleClean = cleanKey(existingTags.title);
+      
+      if (fileTitleClean.length >= 4 && !fileTitleClean.includes(tagTitleClean) && !tagTitleClean.includes(fileTitleClean)) {
+        useTags = false;
+        console.log(`  ${colors.yellow}⚠ Mismatch detected between filename title ("${title}") and tag title ("${existingTags.title}"). Ignoring existing tags as hints.${colors.reset}`);
+      }
+    }
   }
-  if (existingTags.artist && !forceArtist && !inferredArtist) {
-    searchArtist = cleanText(existingTags.artist);
+
+  if (useTags) {
+    if (existingTags.title && !cleanText(existingTags.title).toLowerCase().includes("promo")) {
+      searchTitle = cleanText(smartTitleCase(existingTags.title));
+    }
+    if (existingTags.artist && !forceArtist && !inferredArtist) {
+      searchArtist = cleanText(existingTags.artist);
+    }
+  } else {
+    // Ignore existing artist if tags are mismatched
+    searchArtist = forceArtist || inferredArtist || "";
   }
 
   let finalTitle = featuredArtist ? `${searchTitle} (feat. ${featuredArtist})` : searchTitle;
@@ -970,6 +1001,25 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
       finalTitle = metadata.title || finalTitle;
       finalArtist = metadata.artist || finalArtist;
       
+      // If matched on Deezer, fetch full track details to extract contributors/guest features
+      if (metadata.source === 'Deezer' && metadata.id) {
+        try {
+          const detailRes = await fetch(`https://api.deezer.com/track/${metadata.id}`);
+          if (detailRes.ok) {
+            const trackDetail = await detailRes.json();
+            if (trackDetail.contributors && trackDetail.contributors.length > 1) {
+              const mainArtist = trackDetail.artist?.name || metadata.artist;
+              const feats = trackDetail.contributors
+                .filter(c => c.name.toLowerCase() !== mainArtist.toLowerCase())
+                .map(c => c.name);
+              if (feats.length > 0) {
+                finalArtist = `${mainArtist} & ${feats.join(' & ')}`;
+              }
+            }
+          }
+        } catch (e) {}
+      }
+      
       if (!inferredAlbum) {
         finalAlbum = metadata.album || finalAlbum;
       }
@@ -1005,6 +1055,31 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
         console.log(`  ${colors.yellow}⚠ Low-confidence match in online databases (Score: ${metadata.score.toFixed(2)}). Skipping online tagging.${colors.reset}`);
       } else {
         console.log(`  ${colors.yellow}⚠ No match found in online databases. Skipping online tagging.${colors.reset}`);
+      }
+    }
+  }
+
+  // Reconcile guest features if finalArtist has guest artists but finalTitle does not contain features
+  if (finalArtist && !finalTitle.toLowerCase().includes('feat') && !finalTitle.toLowerCase().includes('ft')) {
+    const ftMatch = finalArtist.match(/\b(?:ft|feat|featuring)\b\.?\s+(.+)$/i);
+    if (ftMatch) {
+      const featArtist = ftMatch[1].trim();
+      finalTitle = `${finalTitle} (feat. ${featArtist})`;
+    } else {
+      let mainArtist = forceArtist || inferredArtist || "";
+      if (!mainArtist && finalArtist) {
+        mainArtist = finalArtist.split(/&|,|\band\b/i)[0].trim();
+      }
+      if (mainArtist) {
+        const mainArtistWords = mainArtist.toLowerCase().split(/\s+/);
+        const artists = finalArtist.split(/&|,|\band\b/i).map(s => s.trim());
+        const feats = artists.filter(a => {
+          const aWords = a.toLowerCase().split(/\s+/);
+          return !aWords.every(w => mainArtistWords.includes(w));
+        });
+        if (feats.length > 0) {
+          finalTitle = `${finalTitle} (feat. ${feats.join(' & ')})`;
+        }
       }
     }
   }
