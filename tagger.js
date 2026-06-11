@@ -565,6 +565,7 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
   // Try matching with official tracklist first
   const baseTitleClean = title.split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
   const normKey = baseTitleClean.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const fullNormKey = title.toLowerCase().replace(/[^a-z0-9]/g, "");
   let matchedOfficial = false;
 
   if (tracklistMap && tracklistMap.has(normKey)) {
@@ -576,7 +577,7 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
     matchedOfficial = true;
   } else if (tracklistMap) {
     for (const [key, official] of tracklistMap.entries()) {
-      if (key.length >= 4 && (normKey.includes(key) || key.includes(normKey))) {
+      if (key.length >= 4 && (fullNormKey.includes(key) || key.includes(fullNormKey))) {
         console.log(`  ${colors.green}✓ Matched official album tracklist via substring! (${official.title})${colors.reset}`);
         finalTitle = smartTitleCase(official.title);
         finalArtist = official.artist;
