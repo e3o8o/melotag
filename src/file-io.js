@@ -252,8 +252,12 @@ export async function writeTagsToBuffer(track) {
     return true;
   } else if (window.showSaveFilePicker) {
     try {
+      let suggestedName = track.name;
+      if (track.title && track.artist) {
+        suggestedName = `${track.artist} - ${track.title}.mp3`;
+      }
       const handle = await window.showSaveFilePicker({
-        suggestedName: track.name,
+        suggestedName,
         types: [{ description: 'Audio Files', accept: { 'audio/mpeg': ['.mp3'] } }]
       });
       if (handle) {
