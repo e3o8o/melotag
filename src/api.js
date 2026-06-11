@@ -262,73 +262,282 @@ export async function fetchUnifiedSuggestions(query) {
 
 // --- Album Context Fetch (Deezer tracklist + cover art) ---
 // Returns { tracklistMap: Map<normalizedKey, {title, artist, trackNumber}>, artworkUrl: string|null }
+// Calculate similarity score between query artist/album and candidate artist/album
+function calculateAlbumScore(queryArtist, queryAlbum, matchArtist, matchAlbum) {
+  const clean = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const qa = clean(queryArtist);
+  const qb = clean(queryAlbum);
+  const ma = clean(matchArtist);
+  const mb = clean(matchAlbum);
+
+  if (!qa && !qb) return 0;
+
+  const exactArtist = qa === ma;
+  const exactAlbum = qb === mb;
+  if (exactArtist && exactAlbum) return 1.0;
+
+  const artistSub = qa && ma ? (qa.includes(ma) || ma.includes(qa)) : false;
+  const albumSub = qb && mb ? (qb.includes(mb) || mb.includes(qb)) : false;
+
+  let artistScore = 0;
+  if (exactArtist) artistScore = 1.0;
+  else if (artistSub) artistScore = 0.8;
+  else artistScore = 0.2;
+
+  let albumScore = 0;
+  if (exactAlbum) albumScore = 1.0;
+  else if (albumSub) albumScore = 0.8;
+  else albumScore = 0.2;
+
+  return artistScore * 0.5 + albumScore * 0.5;
+}
+
+// --- Album Context Fetch (iTunes + Deezer + MusicBrainz) ---
 export async function fetchAlbumContext(artist, album) {
   const tracklistMap = new Map();
   let artworkUrl = null;
+  let resolvedArtist = artist;
+  let resolvedAlbum = album;
+  let year = '';
+  let genre = '';
+  
   const query = `${artist} ${album}`.trim();
-  if (!query) return { tracklistMap, artworkUrl };
+  if (!query) return { tracklistMap, artworkUrl, resolvedArtist, resolvedAlbum, year, genre };
 
-  try {
-    const res = await fetch(`/api/deezer/search/album?q=${encodeURIComponent(query)}`);
-    if (!res.ok) return { tracklistMap, artworkUrl };
-    const data = await res.json();
-    const albums = data.data || [];
-    if (albums.length === 0) return { tracklistMap, artworkUrl };
+  const candidates = [];
 
-    const albumInfo = albums[0];
-    artworkUrl = albumInfo.cover_xl || albumInfo.cover_big || albumInfo.cover_medium || null;
-    const albumId = albumInfo.id;
+  // 1. iTunes Search
+  const itunesPromise = (async () => {
+    try {
+      const res = await fetch(`/api/itunes/search?term=${encodeURIComponent(query)}&entity=album&limit=3`);
+      if (res.ok) {
+        const data = await res.json();
+        (data.results || []).forEach(item => {
+          const score = calculateAlbumScore(artist, album, item.artistName, item.collectionName);
+          const coverUrl = item.artworkUrl100 ? item.artworkUrl100.replace('/100x100bb.jpg', '/1000x1000bb.jpg') : '';
+          candidates.push({
+            source: 'iTunes',
+            id: String(item.collectionId),
+            artist: item.artistName || '',
+            album: item.collectionName || '',
+            coverUrl,
+            score,
+            genre: item.primaryGenreName || '',
+            year: item.releaseDate ? item.releaseDate.substring(0, 4) : ''
+          });
+        });
+      }
+    } catch (e) {}
+  })();
 
-    const tracksRes = await fetch(`/api/deezer/album/${albumId}/tracks`);
-    if (!tracksRes.ok) return { tracklistMap, artworkUrl };
-    const tracksData = await tracksRes.json();
-    const tracks = tracksData.data || [];
+  // 2. Deezer Search
+  const deezerPromise = (async () => {
+    try {
+      const res = await fetch(`/api/deezer/search/album?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data = await res.json();
+        (data.data || []).slice(0, 3).forEach(item => {
+          const score = calculateAlbumScore(artist, album, item.artist?.name, item.title);
+          const coverUrl = item.cover_xl || item.cover_big || item.cover;
+          candidates.push({
+            source: 'Deezer',
+            id: String(item.id),
+            artist: item.artist?.name || '',
+            album: item.title || '',
+            coverUrl,
+            score,
+            genre: '',
+            year: ''
+          });
+        });
+      }
+    } catch (e) {}
+  })();
 
-    // Parallel fetch detailed track info to resolve contributors/features
-    const trackDetails = await Promise.all(
-      tracks.map(async (t) => {
+  // 3. MusicBrainz Search
+  const mbPromise = (async () => {
+    try {
+      const url = `/api/musicbrainz/ws/2/release?query=${encodeURIComponent(query)}&fmt=json&limit=3`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'MeloTag/1.0 (https://melotag.app)' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        (data.releases || []).forEach(item => {
+          const artistName = (item['artist-credit'] || []).map(ac => ac.name || '').join(' ');
+          const score = calculateAlbumScore(artist, album, artistName, item.title);
+          candidates.push({
+            source: 'MusicBrainz',
+            id: item.id,
+            artist: artistName,
+            album: item.title || '',
+            coverUrl: `/api/coverart/release/${item.id}/front`,
+            score,
+            genre: '',
+            year: item.date ? item.date.substring(0, 4) : ''
+          });
+        });
+      }
+    } catch (e) {}
+  })();
+
+  await Promise.allSettled([itunesPromise, deezerPromise, mbPromise]);
+
+  candidates.sort((a, b) => b.score - a.score);
+
+  if (candidates.length > 0) {
+    // Attempt to resolve tracklist
+    for (const cand of candidates) {
+      if (cand.source === 'iTunes') {
         try {
-          const detailRes = await fetch(`/api/deezer/track/${t.id}`);
-          if (detailRes.ok) {
-            return await detailRes.json();
+          const res = await fetch(`/api/itunes/lookup?id=${cand.id}&entity=song`);
+          if (res.ok) {
+            const data = await res.json();
+            const tracks = (data.results || []).filter(r => r.wrapperType === 'track' && r.kind === 'song');
+            if (tracks.length > 0) {
+              tracks.forEach(t => {
+                let title = smartTitleCase(t.trackName || '');
+                let artistVal = t.artistName || cand.artist;
+                const key = (t.trackName || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+                const cleanTitle = (t.trackName || '').split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
+                const shortKey = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+                const trackInfo = {
+                  title,
+                  artist: artistVal,
+                  trackNumber: String(t.trackNumber)
+                };
+                tracklistMap.set(key, trackInfo);
+                if (shortKey && !tracklistMap.has(shortKey)) {
+                  tracklistMap.set(shortKey, trackInfo);
+                }
+              });
+              resolvedArtist = cand.artist || resolvedArtist;
+              resolvedAlbum = cand.album || resolvedAlbum;
+              if (cand.year) year = cand.year;
+              if (cand.genre) genre = cand.genre;
+              break;
+            }
           }
-        } catch (err) {
-          // Fallback to basic info
-        }
-        return t;
-      })
-    );
+        } catch (e) {}
+      } else if (cand.source === 'Deezer') {
+        try {
+          const res = await fetch(`/api/deezer/album/${cand.id}/tracks`);
+          if (res.ok) {
+            const data = await res.json();
+            const tracks = data.data || [];
+            if (tracks.length > 0) {
+              const trackDetails = await Promise.all(
+                tracks.map(async (t) => {
+                  try {
+                    const dRes = await fetch(`/api/deezer/track/${t.id}`);
+                    if (dRes.ok) return await dRes.json();
+                  } catch (err) {}
+                  return t;
+                })
+              );
+              trackDetails.forEach(t => {
+                let title = smartTitleCase(t.title || '');
+                let artistVal = t.artist?.name || cand.artist;
 
-    trackDetails.forEach(t => {
-      let finalT = smartTitleCase(t.title || '');
-      let finalA = t.artist?.name || artist;
+                if (t.contributors && t.contributors.length > 1) {
+                  const mainArtist = t.artist?.name || cand.artist;
+                  const feats = t.contributors
+                    .filter(c => c.name.toLowerCase() !== mainArtist.toLowerCase())
+                    .map(c => c.name);
+                  
+                  if (feats.length > 0) {
+                    title = `${title} (feat. ${feats.join(' & ')})`;
+                    artistVal = `${mainArtist} & ${feats.join(' & ')}`;
+                  }
+                }
 
-      // Extract features from contributors
-      if (t.contributors && t.contributors.length > 1) {
-        const mainArtist = t.artist?.name || artist;
-        const feats = t.contributors
-          .filter(c => c.name.toLowerCase() !== mainArtist.toLowerCase())
-          .map(c => c.name);
+                const key = (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+                const shortKey = (t.title_short || '').toLowerCase().replace(/[^a-z0-9]/g, "");
 
-        if (feats.length > 0) {
-          finalT = `${finalT} (feat. ${feats.join(' & ')})`;
-          finalA = `${mainArtist} & ${feats.join(' & ')}`;
+                const trackInfo = {
+                  title,
+                  artist: artistVal,
+                  trackNumber: String(t.track_position)
+                };
+                tracklistMap.set(key, trackInfo);
+                if (shortKey && !tracklistMap.has(shortKey)) {
+                  tracklistMap.set(shortKey, trackInfo);
+                }
+              });
+              resolvedArtist = cand.artist || resolvedArtist;
+              resolvedAlbum = cand.album || resolvedAlbum;
+              break;
+            }
+          }
+        } catch (e) {}
+      } else if (cand.source === 'MusicBrainz') {
+        try {
+          const res = await fetch(`/api/musicbrainz/ws/2/release/${cand.id}?inc=recordings+artist-credits&fmt=json`);
+          if (res.ok) {
+            const data = await res.json();
+            const media = data.media || [];
+            const tracks = media[0]?.tracks || [];
+            if (tracks.length > 0) {
+              tracks.forEach(t => {
+                let title = smartTitleCase(t.title || '');
+                let artistStr = '';
+                const credits = t['artist-credit'] || [];
+                credits.forEach(ac => {
+                  artistStr += ac.name;
+                  if (ac.joinphrase) artistStr += ac.joinphrase;
+                });
+                artistStr = artistStr.trim();
+                let artistVal = artistStr || cand.artist;
+
+                const mainArtistName = credits[0]?.name || cand.artist;
+                const feats = credits
+                  .slice(1)
+                  .map(ac => ac.artist?.name || ac.name)
+                  .filter(name => name.toLowerCase() !== mainArtistName.toLowerCase());
+
+                if (feats.length > 0 && !title.toLowerCase().includes('feat')) {
+                  title = `${title} (feat. ${feats.join(' & ')})`;
+                  artistVal = `${mainArtistName} & ${feats.join(' & ')}`;
+                }
+
+                const key = (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+                tracklistMap.set(key, {
+                  title,
+                  artist: artistVal,
+                  trackNumber: String(t.number)
+                });
+              });
+              resolvedArtist = cand.artist || resolvedArtist;
+              resolvedAlbum = cand.album || resolvedAlbum;
+              if (cand.year) year = cand.year;
+              break;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    // Select cover art
+    const goodCandidates = candidates.filter(c => c.score >= 0.7);
+    const artPriority = { 'MusicBrainz': 3, 'iTunes': 2, 'Deezer': 1 };
+    goodCandidates.sort((a, b) => (artPriority[b.source] || 0) - (artPriority[a.source] || 0));
+
+    for (const cand of goodCandidates) {
+      if (cand.coverUrl) {
+        try {
+          const imgRes = await fetch(cand.coverUrl, { method: 'HEAD' });
+          if (imgRes.ok) {
+            artworkUrl = cand.coverUrl;
+            break;
+          }
+        } catch (e) {
+          artworkUrl = cand.coverUrl;
+          break;
         }
       }
-
-      const key = t.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const shortKey = (t.title_short || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const trackInfo = {
-        title: finalT,
-        trackNumber: String(t.track_position || ''),
-        artist: finalA
-      };
-      tracklistMap.set(key, trackInfo);
-      if (shortKey && !tracklistMap.has(shortKey)) tracklistMap.set(shortKey, trackInfo);
-    });
-  } catch (err) {
-    console.warn('fetchAlbumContext failed:', err);
+    }
   }
 
-  return { tracklistMap, artworkUrl };
+  return { tracklistMap, artworkUrl, resolvedArtist, resolvedAlbum, year, genre };
 }

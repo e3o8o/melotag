@@ -154,33 +154,358 @@ function parseFilename(filename, inferredArtist) {
   return { trackNum, title, featuredArtist };
 }
 
-// Search iTunes suggestions
-async function fetchiTunesMetadata(artist, trackTitle) {
-  // Build a query with artist and cleaned track title
-  const query = `${artist || ''} ${trackTitle}`.trim();
-  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=5`;
-  try {
-    const res = await fetch(url, { headers: { 'User-Agent': 'MeloTag/1.0' } });
-    if (res.ok) {
-      const data = await res.json();
-      const results = data.results || [];
-      for (const item of results) {
-        const resArtist = (item.artistName || "").toLowerCase();
-        const resTitle = (item.trackName || "").toLowerCase();
-        
-        // Match artist and title
-        const artistMatch = !artist || resArtist.includes(artist.toLowerCase()) || artist.toLowerCase().includes(resArtist);
-        const titleMatch = resTitle.includes(trackTitle.toLowerCase()) || trackTitle.toLowerCase().includes(resTitle);
-        
-        if (artistMatch && titleMatch) {
-          return item;
+// Calculate similarity score between query artist/album and candidate artist/album
+function calculateAlbumScore(queryArtist, queryAlbum, matchArtist, matchAlbum) {
+  const clean = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const qa = clean(queryArtist);
+  const qb = clean(queryAlbum);
+  const ma = clean(matchArtist);
+  const mb = clean(matchAlbum);
+
+  if (!qa && !qb) return 0;
+
+  // Exact matching
+  const exactArtist = qa === ma;
+  const exactAlbum = qb === mb;
+  if (exactArtist && exactAlbum) return 1.0;
+
+  // Substring matching
+  const artistSub = qa && ma ? (qa.includes(ma) || ma.includes(qa)) : false;
+  const albumSub = qb && mb ? (qb.includes(mb) || mb.includes(qb)) : false;
+
+  let artistScore = 0;
+  if (exactArtist) artistScore = 1.0;
+  else if (artistSub) artistScore = 0.8;
+  else artistScore = 0.2;
+
+  let albumScore = 0;
+  if (exactAlbum) albumScore = 1.0;
+  else if (albumSub) albumScore = 0.8;
+  else albumScore = 0.2;
+
+  return artistScore * 0.5 + albumScore * 0.5;
+}
+
+// Search iTunes, Deezer, and MusicBrainz for candidate albums
+async function searchAlbumAcrossSources(artist, album) {
+  const query = `${artist} ${album}`.trim();
+  const results = [];
+
+  // 1. iTunes Search
+  const itunesPromise = (async () => {
+    try {
+      const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=album&limit=3`, {
+        headers: { 'User-Agent': 'MeloTag/1.0' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        (data.results || []).forEach(item => {
+          const score = calculateAlbumScore(artist, album, item.artistName, item.collectionName);
+          const coverUrl = item.artworkUrl100 ? item.artworkUrl100.replace('/100x100bb.jpg', '/1000x1000bb.jpg') : '';
+          results.push({
+            source: 'iTunes',
+            id: String(item.collectionId),
+            artist: item.artistName || '',
+            album: item.collectionName || '',
+            coverUrl,
+            score,
+            genre: item.primaryGenreName || '',
+            year: item.releaseDate ? item.releaseDate.substring(0, 4) : ''
+          });
+        });
+      }
+    } catch (e) {}
+  })();
+
+  // 2. Deezer Search
+  const deezerPromise = (async () => {
+    try {
+      const res = await fetch(`https://api.deezer.com/search/album?q=${encodeURIComponent(query)}`, {
+        headers: { 'User-Agent': 'MeloTag/1.0' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        (data.data || []).slice(0, 3).forEach(item => {
+          const score = calculateAlbumScore(artist, album, item.artist?.name, item.title);
+          const coverUrl = item.cover_xl || item.cover_big || item.cover;
+          results.push({
+            source: 'Deezer',
+            id: String(item.id),
+            artist: item.artist?.name || '',
+            album: item.title || '',
+            coverUrl,
+            score,
+            genre: '',
+            year: ''
+          });
+        });
+      }
+    } catch (e) {}
+  })();
+
+  // 3. MusicBrainz Search
+  const mbPromise = (async () => {
+    try {
+      const url = `https://musicbrainz.org/ws/2/release?query=${encodeURIComponent(query)}&fmt=json&limit=3`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'MeloTag/1.0 (https://melotag.app)' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        (data.releases || []).forEach(item => {
+          const artistName = (item['artist-credit'] || []).map(ac => ac.name || '').join(' ');
+          const score = calculateAlbumScore(artist, album, artistName, item.title);
+          results.push({
+            source: 'MusicBrainz',
+            id: item.id,
+            artist: artistName,
+            album: item.title || '',
+            coverUrl: `https://coverartarchive.org/release/${item.id}/front`,
+            score,
+            genre: '',
+            year: item.date ? item.date.substring(0, 4) : ''
+          });
+        });
+      }
+    } catch (e) {}
+  })();
+
+  await Promise.allSettled([itunesPromise, deezerPromise, mbPromise]);
+
+  results.sort((a, b) => b.score - a.score);
+  return results;
+}
+
+// Search track metadata across iTunes, Deezer, and MusicBrainz (for single file mode)
+async function fetchTrackMetadata(artist, title) {
+  const query = `${artist || ''} ${title}`.trim();
+  const candidates = [];
+
+  // 1. iTunes Song Search
+  const itunesPromise = (async () => {
+    try {
+      const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=3`, {
+        headers: { 'User-Agent': 'MeloTag/1.0' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        (data.results || []).forEach(item => {
+          candidates.push({
+            source: 'iTunes',
+            title: item.trackName || '',
+            artist: item.artistName || '',
+            album: item.collectionName || '',
+            trackNumber: String(item.trackNumber || ''),
+            genre: item.primaryGenreName || '',
+            year: item.releaseDate ? item.releaseDate.substring(0, 4) : '',
+            coverUrl: item.artworkUrl100 ? item.artworkUrl100.replace('/100x100bb.jpg', '/1000x1000bb.jpg') : '',
+            score: calculateAlbumScore(artist || item.artistName || '', title, item.artistName, item.trackName)
+          });
+        });
+      }
+    } catch (e) {}
+  })();
+
+  // 2. Deezer Track Search
+  const deezerPromise = (async () => {
+    try {
+      const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(query)}`, {
+        headers: { 'User-Agent': 'MeloTag/1.0' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        (data.data || []).slice(0, 3).forEach(item => {
+          const coverUrl = item.album?.cover_xl || item.album?.cover_big || item.album?.cover_medium || '';
+          candidates.push({
+            source: 'Deezer',
+            title: item.title || '',
+            artist: item.artist?.name || '',
+            album: item.album?.title || '',
+            trackNumber: '',
+            genre: '',
+            year: '',
+            coverUrl,
+            score: calculateAlbumScore(artist || item.artist?.name || '', title, item.artist?.name, item.title)
+          });
+        });
+      }
+    } catch (e) {}
+  })();
+
+  // 3. MusicBrainz Recording Search
+  const mbPromise = (async () => {
+    try {
+      const url = `https://musicbrainz.org/ws/2/recording?query=${encodeURIComponent(query)}&fmt=json&limit=3`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'MeloTag/1.0 (https://melotag.app)' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const recordings = data.recordings || [];
+        for (const rec of recordings) {
+          const artistCredit = rec['artist-credit'] || [];
+          const artistName = artistCredit.map(ac => ac.name || '').join(' ');
+          const firstRelease = rec.releases?.[0] || {};
+          const albumTitle = firstRelease.title || '';
+          const releaseMbid = firstRelease.id || '';
+
+          candidates.push({
+            source: 'MusicBrainz',
+            title: rec.title || '',
+            artist: artistName,
+            album: albumTitle,
+            trackNumber: '',
+            genre: '',
+            year: firstRelease.date ? firstRelease.date.substring(0, 4) : '',
+            coverUrl: releaseMbid ? `https://coverartarchive.org/release/${releaseMbid}/front` : '',
+            score: calculateAlbumScore(artist || artistName, title, artistName, rec.title)
+          });
         }
       }
+    } catch (e) {}
+  })();
+
+  await Promise.allSettled([itunesPromise, deezerPromise, mbPromise]);
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates;
+}
+
+// Fetch tracklist from a specific candidate album
+async function fetchTracklist(candidate) {
+  const tracklistMap = new Map();
+  let metadataOverride = {
+    genre: candidate.genre || '',
+    year: candidate.year || ''
+  };
+
+  if (candidate.source === 'iTunes') {
+    try {
+      const res = await fetch(`https://itunes.apple.com/lookup?id=${candidate.id}&entity=song`);
+      if (res.ok) {
+        const data = await res.json();
+        const tracks = (data.results || []).filter(r => r.wrapperType === 'track' && r.kind === 'song');
+        tracks.forEach(t => {
+          let title = smartTitleCase(t.trackName || '');
+          let artist = t.artistName || candidate.artist;
+          
+          const key = (t.trackName || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+          const cleanTitle = (t.trackName || '').split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
+          const shortKey = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+          const trackInfo = {
+            title,
+            artist,
+            trackNumber: String(t.trackNumber)
+          };
+          tracklistMap.set(key, trackInfo);
+          if (shortKey && !tracklistMap.has(shortKey)) {
+            tracklistMap.set(shortKey, trackInfo);
+          }
+        });
+      }
+    } catch (e) {
+      console.warn(`[iTunes] Tracklist fetch failed:`, e.message);
     }
-  } catch (err) {
-    // Fail silently
+  } else if (candidate.source === 'Deezer') {
+    try {
+      const res = await fetch(`https://api.deezer.com/album/${candidate.id}/tracks`);
+      if (res.ok) {
+        const data = await res.json();
+        const tracks = data.data || [];
+        // Parallel fetch details
+        const trackDetails = await Promise.all(
+          tracks.map(async (t) => {
+            try {
+              const dRes = await fetch(`https://api.deezer.com/track/${t.id}`);
+              if (dRes.ok) return await dRes.json();
+            } catch (err) {}
+            return t;
+          })
+        );
+        trackDetails.forEach(t => {
+          let title = smartTitleCase(t.title || '');
+          let artist = t.artist?.name || candidate.artist;
+
+          if (t.contributors && t.contributors.length > 1) {
+            const mainArtist = t.artist?.name || candidate.artist;
+            const feats = t.contributors
+              .filter(c => c.name.toLowerCase() !== mainArtist.toLowerCase())
+              .map(c => c.name);
+            
+            if (feats.length > 0) {
+              title = `${title} (feat. ${feats.join(' & ')})`;
+              artist = `${mainArtist} & ${feats.join(' & ')}`;
+            }
+          }
+
+          const key = (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+          const shortKey = (t.title_short || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+
+          const trackInfo = {
+            title,
+            artist,
+            trackNumber: String(t.track_position)
+          };
+          tracklistMap.set(key, trackInfo);
+          if (shortKey && !tracklistMap.has(shortKey)) {
+            tracklistMap.set(shortKey, trackInfo);
+          }
+        });
+      }
+    } catch (e) {
+      console.warn(`[Deezer] Tracklist fetch failed:`, e.message);
+    }
+  } else if (candidate.source === 'MusicBrainz') {
+    try {
+      const url = `https://musicbrainz.org/ws/2/release/${candidate.id}?inc=recordings+artist-credits&fmt=json`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'MeloTag/1.0 (https://melotag.app)' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const media = data.media || [];
+        const tracks = media[0]?.tracks || [];
+        tracks.forEach(t => {
+          let title = smartTitleCase(t.title || '');
+          
+          let artistStr = '';
+          const credits = t['artist-credit'] || [];
+          credits.forEach(ac => {
+            artistStr += ac.name;
+            if (ac.joinphrase) {
+              artistStr += ac.joinphrase;
+            }
+          });
+          artistStr = artistStr.trim();
+          let artist = artistStr || candidate.artist;
+
+          const mainArtistName = credits[0]?.name || candidate.artist;
+          const feats = credits
+            .slice(1)
+            .map(ac => ac.artist?.name || ac.name)
+            .filter(name => name.toLowerCase() !== mainArtistName.toLowerCase());
+
+          if (feats.length > 0 && !title.toLowerCase().includes('feat')) {
+            title = `${title} (feat. ${feats.join(' & ')})`;
+            artist = `${mainArtistName} & ${feats.join(' & ')}`;
+          }
+
+          const key = (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+          const trackInfo = {
+            title,
+            artist,
+            trackNumber: String(t.number)
+          };
+          tracklistMap.set(key, trackInfo);
+        });
+      }
+    } catch (e) {
+      console.warn(`[MusicBrainz] Tracklist fetch failed:`, e.message);
+    }
   }
-  return null;
+
+  return { tracklistMap, metadataOverride };
 }
 
 // Download cover artwork buffer
@@ -219,7 +544,7 @@ function inferFromFolderName(folderName) {
 }
 
 // Main processing logic
-async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork, tracklistMap) {
+async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork, tracklistMap, globalMetadata) {
   const filename = path.basename(filepath);
   const { trackNum, title, featuredArtist } = parseFilename(filename, inferredArtist);
 
@@ -231,14 +556,13 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
   
   let finalAlbum = forceAlbum || inferredAlbum || "Unknown Album";
   let finalTrack = trackNum;
-  let finalYear = "2025";
-  let finalGenre = "Afrobeats";
+  let finalYear = globalMetadata?.year || "2025";
+  let finalGenre = globalMetadata?.genre || "Afrobeats";
   let artwork = albumArtwork;
 
   console.log(`\n${colors.bright}${colors.blue}➜ Processing:${colors.reset} ${filename}`);
   
   // Try matching with official tracklist first
-  // Strip featured details when creating the normalization key to ensure clean matches
   const baseTitleClean = title.split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
   const normKey = baseTitleClean.toLowerCase().replace(/[^a-z0-9]/g, "");
   let matchedOfficial = false;
@@ -251,7 +575,6 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
     finalTrack = official.trackNumber;
     matchedOfficial = true;
   } else if (tracklistMap) {
-    // Try matching if the tracklist key is contained in the filename's normKey (or vice-versa)
     for (const [key, official] of tracklistMap.entries()) {
       if (key.length >= 4 && (normKey.includes(key) || key.includes(normKey))) {
         console.log(`  ${colors.green}✓ Matched official album tracklist via substring! (${official.title})${colors.reset}`);
@@ -264,31 +587,43 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
     }
   }
 
-  // Fetch from iTunes as fallback/supplement
+  // Fetch from unified sources as fallback
   if (!matchedOfficial) {
-    const metadata = await fetchiTunesMetadata(inferredArtist, title);
-    if (metadata) {
-      console.log(`  ${colors.green}✓ Matches iTunes database!${colors.reset}`);
-      finalTitle = metadata.trackName || finalTitle;
-      finalArtist = metadata.artistName || finalArtist;
+    const candidates = await fetchTrackMetadata(inferredArtist, title);
+    if (candidates.length > 0) {
+      const metadata = candidates[0];
+      console.log(`  ${colors.green}✓ Matches ${metadata.source} database! (Score: ${metadata.score.toFixed(2)})${colors.reset}`);
+      finalTitle = metadata.title || finalTitle;
+      finalArtist = metadata.artist || finalArtist;
       
-      // Lock album name if we are processing a folder representing an album
       if (!inferredAlbum) {
-        finalAlbum = metadata.collectionName || finalAlbum;
+        finalAlbum = metadata.album || finalAlbum;
       }
       
-      finalTrack = String(metadata.trackNumber || finalTrack);
-      finalGenre = metadata.primaryGenreName || finalGenre;
-      const date = metadata.releaseDate || "";
-      if (date && date.length >= 4) {
-        finalYear = date.substring(0, 4);
+      if (metadata.trackNumber) {
+        finalTrack = metadata.trackNumber;
+      }
+      if (metadata.genre) {
+        finalGenre = metadata.genre;
+      }
+      if (metadata.year) {
+        finalYear = metadata.year;
       }
 
       if (!artwork) {
-        const artUrl = (metadata.artworkUrl100 || "").replace("100x100bb.jpg", "1000x1000bb.jpg");
-        if (artUrl) {
-          console.log(`  ${colors.cyan}⬇ Downloading cover art from iTunes...${colors.reset}`);
-          artwork = await downloadArtwork(artUrl);
+        const goodTrackCandidates = candidates.filter(c => c.score >= 0.8);
+        const artPriority = { 'MusicBrainz': 3, 'iTunes': 2, 'Deezer': 1 };
+        goodTrackCandidates.sort((a, b) => (artPriority[b.source] || 0) - (artPriority[a.source] || 0));
+
+        for (const cand of goodTrackCandidates) {
+          if (cand.coverUrl) {
+            console.log(`  ${colors.cyan}⬇ Downloading cover art from ${cand.source}...${colors.reset}`);
+            const art = await downloadArtwork(cand.coverUrl);
+            if (art) {
+              artwork = art;
+              break;
+            }
+          }
         }
       }
     }
@@ -319,10 +654,8 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
   }
 
   try {
-    // Strip comments, web URLs, PRIV tags, etc.
     NodeID3.removeTags(filepath);
 
-    // Write clean tags
     const success = NodeID3.write(tags, filepath);
     if (success) {
       console.log(`  ${colors.green}✓ Tags saved: ${finalArtist} - ${finalTitle} [${finalAlbum}]${colors.reset}`);
@@ -331,7 +664,6 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
       console.warn(`  ${colors.red}✗ Failed writing tags to ${filename}${colors.reset}`);
     }
 
-    // Rename file if enabled
     if (shouldRename) {
       let newFilename = "";
       if (finalTrack) {
@@ -340,7 +672,6 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
         newFilename = `${finalTitle}.mp3`;
       }
 
-      // Remove illegal characters from filename
       newFilename = newFilename.replace(/[\\/*?:"<>|]/g, "");
       const newFilepath = path.join(path.dirname(filepath), newFilename);
 
@@ -368,13 +699,12 @@ async function main() {
       process.exit(1);
     }
     console.log(`${colors.bright}${colors.cyan}MeloTag single file processor starting...${colors.reset}`);
-    await processFile(targetPath, forceArtist || "", forceAlbum || "", null, null);
+    await processFile(targetPath, forceArtist || "", forceAlbum || "", null, null, null);
     console.log(`\n${colors.bright}${colors.green}✓ Finished tagging file!${colors.reset}\n`);
 
   } else if (stats.isDirectory()) {
     console.log(`${colors.bright}${colors.cyan}MeloTag folder processor starting...${colors.reset}`);
     
-    // Infer artist & album names from folder name
     const folderName = path.basename(targetPath);
     const inferred = inferFromFolderName(folderName);
     const inferredArtist = forceArtist || inferred.artist || "Unknown Artist";
@@ -389,96 +719,63 @@ async function main() {
       return;
     }
 
-    console.log(`Found ${files.length} tracks. Searching for album-wide cover art...`);
+    console.log(`Found ${files.length} tracks. Searching for album-wide metadata across iTunes, Deezer, and MusicBrainz...`);
 
-    // Fetch album metadata from Deezer to get tracklist & cover art
     let albumArtwork = null;
     let tracklistMap = new Map();
-    const albumQuery = `${inferredArtist} ${inferredAlbum}`;
     let resolvedArtist = inferredArtist;
     let resolvedAlbum = inferredAlbum;
-    
-    try {
-      const albumSearchRes = await fetch(`https://api.deezer.com/search/album?q=${encodeURIComponent(albumQuery)}`);
-      if (albumSearchRes.ok) {
-        const searchData = await albumSearchRes.json();
-        const albums = searchData.data || [];
-        if (albums.length > 0) {
-          const albumId = albums[0].id;
-          resolvedArtist = forceArtist || albums[0].artist?.name || inferredArtist;
-          resolvedAlbum = forceAlbum || albums[0].title || inferredAlbum;
+    let globalMetadata = { year: '2025', genre: 'Afrobeats' };
 
-          const artUrl = albums[0].cover_xl || albums[0].cover_big || albums[0].cover;
-          if (artUrl) {
-            console.log(`${colors.green}Found album cover art on Deezer: ${artUrl}${colors.reset}`);
-            albumArtwork = await downloadArtwork(artUrl);
-          }
-          
-          // Get tracklist
-          const tracksRes = await fetch(`https://api.deezer.com/album/${albumId}/tracks`);
-          if (tracksRes.ok) {
-            const tracksData = await tracksRes.json();
-            const tracks = tracksData.data || [];
-            console.log(`${colors.green}Retrieved official tracklist from Deezer (${tracks.length} tracks). Fetching track details...${colors.reset}`);
-            
-            // Parallel fetch details for all tracks to resolve contributors (features)
-            const trackDetails = await Promise.all(
-              tracks.map(async (t) => {
-                try {
-                  const detailRes = await fetch(`https://api.deezer.com/track/${t.id}`);
-                  if (detailRes.ok) {
-                    return await detailRes.json();
-                  }
-                } catch (e) {
-                  // Fallback to basic track info
-                }
-                return t;
-              })
-            );
+    const candidates = await searchAlbumAcrossSources(inferredArtist, inferredAlbum);
+    if (candidates.length > 0) {
+      console.log(`\n${colors.bright}Found ${candidates.length} candidate albums:${colors.reset}`);
+      candidates.slice(0, 5).forEach((cand, idx) => {
+        console.log(`  [${idx + 1}] [${cand.source}] ${cand.artist} - ${cand.album} (Score: ${cand.score.toFixed(2)})`);
+      });
 
-            trackDetails.forEach(t => {
-              let finalT = smartTitleCase(t.title || "");
-              let finalA = t.artist?.name || resolvedArtist;
+      let matchedCandidate = null;
+      for (const cand of candidates) {
+        console.log(`\nAttempting to resolve tracklist using candidate [${cand.source}]...`);
+        const { tracklistMap: tempMap, metadataOverride } = await fetchTracklist(cand);
+        if (tempMap && tempMap.size > 0) {
+          tracklistMap = tempMap;
+          matchedCandidate = cand;
+          resolvedArtist = forceArtist || cand.artist || inferredArtist;
+          resolvedAlbum = forceAlbum || cand.album || inferredAlbum;
+          if (metadataOverride.year) globalMetadata.year = metadataOverride.year;
+          if (metadataOverride.genre) globalMetadata.genre = metadataOverride.genre;
+          console.log(`${colors.green}✓ Successfully resolved tracklist (${tracklistMap.size} tracks) from ${cand.source}!${colors.reset}`);
+          break;
+        } else {
+          console.log(`${colors.yellow}⚠ No tracks resolved from ${cand.source}, trying next candidate...${colors.reset}`);
+        }
+      }
 
-              // Extract features from contributors
-              if (t.contributors && t.contributors.length > 1) {
-                const mainArtist = t.artist?.name || resolvedArtist;
-                const feats = t.contributors
-                  .filter(c => c.name.toLowerCase() !== mainArtist.toLowerCase())
-                  .map(c => c.name);
-                
-                if (feats.length > 0) {
-                  finalT = `${finalT} (feat. ${feats.join(' & ')})`;
-                  finalA = `${mainArtist} & ${feats.join(' & ')}`;
-                }
-              }
+      // Download the highest-quality cover art among matching candidates
+      const goodCandidates = candidates.filter(c => c.score >= 0.7);
+      const artPriority = { 'MusicBrainz': 3, 'iTunes': 2, 'Deezer': 1 };
+      goodCandidates.sort((a, b) => (artPriority[b.source] || 0) - (artPriority[a.source] || 0));
 
-              // Store by clean title key
-              const key = t.title.toLowerCase().replace(/[^a-z0-9]/g, "");
-              const shortKey = (t.title_short || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-              
-              const trackInfo = {
-                title: finalT,
-                trackNumber: String(t.track_position),
-                artist: finalA
-              };
-              
-              tracklistMap.set(key, trackInfo);
-              if (shortKey && !tracklistMap.has(shortKey)) {
-                tracklistMap.set(shortKey, trackInfo);
-              }
-            });
+      for (const cand of goodCandidates) {
+        if (cand.coverUrl) {
+          console.log(`Attempting to download cover art from ${cand.source}: ${cand.coverUrl}`);
+          const art = await downloadArtwork(cand.coverUrl);
+          if (art) {
+            albumArtwork = art;
+            console.log(`${colors.green}✓ Downloaded cover art from ${cand.source}.${colors.reset}`);
+            break;
           }
         }
       }
-    } catch (err) {
-      console.warn("Deezer tracklist fetch failed:", err.message);
+    } else {
+      console.log(`${colors.yellow}No album matches found across any API sources.${colors.reset}`);
     }
 
     // Process all MP3 files
     for (const filename of files.sort()) {
       const filepath = path.join(targetPath, filename);
-      await processFile(filepath, resolvedArtist, resolvedAlbum, albumArtwork, tracklistMap);
+      await processFile(filepath, resolvedArtist, resolvedAlbum, albumArtwork, tracklistMap, globalMetadata);
     }
 
     console.log(`\n${colors.bright}${colors.green}✓ Finished tagging all ${files.length} files in folder!${colors.reset}\n`);

@@ -11,7 +11,7 @@ import { writeTagsToBuffer, triggerDownload } from './file-io.js';
 import { selectTrack, updateTrackListItemUI, updateSelectionUI } from './tracks.js';
 
 // Album-level context (set when a folder is loaded)
-export const albumContext = { artist: '', album: '', tracklistMap: null, artworkUrl: null };
+export const albumContext = { artist: '', album: '', tracklistMap: null, artworkUrl: null, year: '', genre: '' };
 
 // --- Apply cover art from URL ---
 async function applyCoverArtFromUrl(track, artUrl) {
@@ -66,6 +66,8 @@ export async function magicAutoTagTrack(track) {
       track.albumArtist = albumContext.artist || official.artist;
       track.album = albumContext.album || track.album;
       track.trackNumber = official.trackNumber || track.trackNumber;
+      if (albumContext.year) track.year = albumContext.year;
+      if (albumContext.genre) track.genre = albumContext.genre;
 
       // Use album-level artwork
       if (!track.coverArt && albumContext.artworkUrl) {
@@ -151,11 +153,17 @@ export async function albumAutoTagTracks(tracks, artist, album) {
   albumContext.album = album;
   albumContext.tracklistMap = null;
   albumContext.artworkUrl = null;
+  albumContext.year = '';
+  albumContext.genre = '';
 
   if (artist || album) {
     const ctx = await fetchAlbumContext(artist, album);
     albumContext.tracklistMap = ctx.tracklistMap;
     albumContext.artworkUrl = ctx.artworkUrl;
+    if (ctx.resolvedArtist) albumContext.artist = ctx.resolvedArtist;
+    if (ctx.resolvedAlbum) albumContext.album = ctx.resolvedAlbum;
+    if (ctx.year) albumContext.year = ctx.year;
+    if (ctx.genre) albumContext.genre = ctx.genre;
   }
 
   let successCount = 0;
