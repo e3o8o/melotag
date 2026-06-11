@@ -254,7 +254,7 @@ export async function writeTagsToBuffer(track) {
     try {
       let suggestedName = track.name;
       if (track.title && track.artist) {
-        const mainArtist = track.artist.split(/\b(?:&|and|,)\b/i)[0].trim();
+        const mainArtist = track.artist.split(/&|,|\band\b/i)[0].trim();
         suggestedName = `${mainArtist} - ${track.title}.mp3`;
       }
       const handle = await window.showSaveFilePicker({
@@ -283,7 +283,7 @@ export function triggerDownload(track) {
 
   let filename = track.name;
   if (track.title && track.artist) {
-    const mainArtist = track.artist.split(/\b(?:&|and|,)\b/i)[0].trim();
+    const mainArtist = track.artist.split(/&|,|\band\b/i)[0].trim();
     filename = `${mainArtist} - ${track.title}.mp3`;
   }
 

@@ -398,6 +398,21 @@ export async function fetchAlbumContext(artist, album) {
               tracks.forEach(t => {
                 let title = smartTitleCase(t.trackName || '');
                 let artistVal = t.artistName || cand.artist;
+                
+                // Reconcile features if artistName contains multiple artists but trackName does not
+                const albumArtist = cand.artist || '';
+                if (artistVal && !title.toLowerCase().includes('feat') && !title.toLowerCase().includes('ft')) {
+                  const mainArtistWords = albumArtist.toLowerCase().split(/\s+/);
+                  const artists = artistVal.split(/&|,|\band\b/i).map(s => s.trim());
+                  const feats = artists.filter(a => {
+                    const aWords = a.toLowerCase().split(/\s+/);
+                    return !aWords.every(w => mainArtistWords.includes(w));
+                  });
+                  if (feats.length > 0) {
+                    title = `${title} (feat. ${feats.join(' & ')})`;
+                  }
+                }
+                
                 const key = (t.trackName || '').toLowerCase().replace(/[^a-z0-9]/g, "");
                 const cleanTitle = (t.trackName || '').split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
                 const shortKey = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, "");

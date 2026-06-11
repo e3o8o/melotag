@@ -389,6 +389,20 @@ async function fetchTracklist(candidate) {
           let title = smartTitleCase(t.trackName || '');
           let artist = t.artistName || candidate.artist;
           
+          // Reconcile features if artistName contains multiple artists but trackName does not
+          const albumArtist = candidate.artist || '';
+          if (artist && !title.toLowerCase().includes('feat') && !title.toLowerCase().includes('ft')) {
+            const mainArtistWords = albumArtist.toLowerCase().split(/\s+/);
+            const artists = artist.split(/&|,|\band\b/i).map(s => s.trim());
+            const feats = artists.filter(a => {
+              const aWords = a.toLowerCase().split(/\s+/);
+              return !aWords.every(w => mainArtistWords.includes(w));
+            });
+            if (feats.length > 0) {
+              title = `${title} (feat. ${feats.join(' & ')})`;
+            }
+          }
+          
           const key = (t.trackName || '').toLowerCase().replace(/[^a-z0-9]/g, "");
           const cleanTitle = (t.trackName || '').split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
           const shortKey = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -667,7 +681,7 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
 
     if (shouldRename) {
       let mainArtist = forceArtist || inferredArtist || finalArtist;
-      mainArtist = mainArtist.split(/\b(?:&|and|,)\b/i)[0].trim();
+      mainArtist = mainArtist.split(/&|,|\band\b/i)[0].trim();
       let newFilename = `${mainArtist} - ${finalTitle}.mp3`;
 
       newFilename = newFilename.replace(/[\\/*?:"<>|]/g, "");
