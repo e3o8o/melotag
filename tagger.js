@@ -211,6 +211,7 @@ const albumIndex = args.indexOf('--album');
 const forceArtist = artistIndex !== -1 ? args[artistIndex + 1] : null;
 const forceAlbum = albumIndex !== -1 ? args[albumIndex + 1] : null;
 const shouldRename = !args.includes('--no-rename');
+const ignoreExistingTags = args.includes('--fresh') || args.includes('--ignore-tags');
 
 // Clean promo keywords from text (prefixes, suffixes, domains, bracket-wrapped tags)
 function cleanText(text) {
@@ -872,9 +873,11 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
   }
 
   let existingTags = {};
-  try {
-    existingTags = readTags(filepath);
-  } catch (err) {}
+  if (!ignoreExistingTags) {
+    try {
+      existingTags = readTags(filepath);
+    } catch (err) {}
+  }
 
   const filename = path.basename(filepath);
   
@@ -899,12 +902,39 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
   if (existingTags.title && title) {
     const isFilenameGeneric = /^track\s*\d+$/i.test(title.trim()) || /untitled/i.test(title) || /unknown/i.test(title) || /^audiotrack\d+$/i.test(title.trim());
     if (!isFilenameGeneric) {
-      const fileTitleClean = cleanKey(title);
-      const tagTitleClean = cleanKey(existingTags.title);
-      
-      if (fileTitleClean.length >= 4 && !fileTitleClean.includes(tagTitleClean) && !tagTitleClean.includes(fileTitleClean)) {
-        useTags = false;
-        console.log(`  ${colors.yellow}⚠ Mismatch detected between filename title ("${title}") and tag title ("${existingTags.title}"). Ignoring existing tags as hints.${colors.reset}`);
+      const STOP_WORDS = new Set(['and', 'the', 'feat', 'featuring', 'remix', 'with', 'for', 'from']);
+      const tokenizeClean = (str) => {
+        return (str || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, ' ')
+          .split(/\s+/)
+          .filter(w => w.length > 2 && !STOP_WORDS.has(w));
+      };
+
+      const fileTokens = tokenizeClean(path.parse(filename).name);
+      const tagTokens = tokenizeClean(existingTags.title);
+
+      if (tagTokens.length > 0) {
+        let matches = 0;
+        for (const t of tagTokens) {
+          if (fileTokens.includes(t)) {
+            matches++;
+          } else {
+            for (const f of fileTokens) {
+              if (getSimilarity(t, f) >= 0.8) {
+                matches++;
+                break;
+              }
+            }
+          }
+        }
+        const overlap = matches / tagTokens.length;
+        if (overlap < 0.4) {
+          useTags = false;
+          console.log(`  ${colors.yellow}⚠ Mismatch detected between filename ("${filename}") and tag title ("${existingTags.title}"). Ignoring existing tags as hints.${colors.reset}`);
+        }
       }
     }
   }
