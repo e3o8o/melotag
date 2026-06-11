@@ -301,8 +301,11 @@ export function triggerDownload(track) {
 
 // --- Init File I/O Listeners ---
 export function initFileIOListeners(hasFS) {
+  const supportsFilePicker = typeof window.showOpenFilePicker === 'function';
+  const supportsDirectoryPicker = typeof window.showDirectoryPicker === 'function';
+
   // File pickers
-  if (hasFS) {
+  if (supportsFilePicker) {
     btnOpenFiles.addEventListener('click', async () => {
       try {
         const fileHandles = await window.showOpenFilePicker({
@@ -318,13 +321,17 @@ export function initFileIOListeners(hasFS) {
         if (err.name !== 'AbortError') console.error('File Picker Error:', err);
       }
     });
+  } else {
+    btnOpenFiles.addEventListener('click', () => fileInput.click());
+  }
 
+  // Folder pickers
+  if (supportsDirectoryPicker) {
     btnOpenFolder.addEventListener('click', async () => {
       try {
         const dirHandle = await window.showDirectoryPicker();
         state.directoryHandle = dirHandle;
         await verifyPermission(dirHandle, true);
-        // Infer artist & album from folder name, show banner
         const { artist, album } = inferFromFolderName(dirHandle.name);
         setAlbumContext(artist, album);
         await scanDirectory(dirHandle);
@@ -359,24 +366,19 @@ export function initFileIOListeners(hasFS) {
       });
     }
   } else {
-    // Fallback: use standard file input for files
-    btnOpenFiles.addEventListener('click', () => fileInput.click());
-
-    // Fallback: use a separate input with webkitdirectory for folder selection
     const folderInput = document.createElement('input');
     folderInput.type = 'file';
     folderInput.multiple = true;
     folderInput.accept = 'audio/mp3,audio/mpeg';
     folderInput.setAttribute('webkitdirectory', '');
     folderInput.setAttribute('directory', '');
-    folderInput.style.display = 'none';
+    folderInput.className = 'visually-hidden-input';
     document.body.appendChild(folderInput);
 
     folderInput.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files).filter(f => f.name.endsWith('.mp3'));
       if (files.length === 0) return;
 
-      // Infer folder name from the common directory path
       const firstPath = files[0].webkitRelativePath || '';
       const folderName = firstPath.split('/')[0] || '';
       if (folderName) {
@@ -415,10 +417,8 @@ export function initFileIOListeners(hasFS) {
     e.preventDefault();
     dropZone.classList.remove('dragover');
 
-    if (hasFS && e.dataTransfer.items) {
+    if (supportsFilePicker && e.dataTransfer.items) {
       const items = Array.from(e.dataTransfer.items);
-      let loadedFolder = false;
-
       for (const item of items) {
         if (item.kind !== 'file') continue;
         try {
@@ -426,13 +426,11 @@ export function initFileIOListeners(hasFS) {
           if (!handle) continue;
 
           if (handle.kind === 'directory') {
-            // Dropped a folder — infer album context and scan it
             state.directoryHandle = handle;
             await verifyPermission(handle, true);
             const { artist, album } = inferFromFolderName(handle.name);
             setAlbumContext(artist, album);
             await scanDirectory(handle);
-            loadedFolder = true;
           } else if (handle.kind === 'file' && handle.name.toLowerCase().endsWith('.mp3')) {
             const file = await handle.getFile();
             await addTrackObject(file, handle);
@@ -441,13 +439,10 @@ export function initFileIOListeners(hasFS) {
           console.error('Error getting handle from drop item:', err);
         }
       }
-
       updateUI();
     } else {
-      // Non-FS-API path: check if items include a folder via webkitGetAsEntry
       const items = Array.from(e.dataTransfer.items || []);
       let handledByEntry = false;
-
       for (const item of items) {
         if (item.kind !== 'file') continue;
         const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
@@ -456,7 +451,6 @@ export function initFileIOListeners(hasFS) {
           await readDirectoryEntry(entry);
         }
       }
-
       if (!handledByEntry) {
         await handleStandardFiles(e.dataTransfer.files);
       } else {
