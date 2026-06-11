@@ -90,6 +90,11 @@ function cleanText(text) {
   return cleaned;
 }
 
+// Normalize unicode accents and convert to alphanumeric only lowercase key
+function cleanKey(str) {
+  return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 // Smart title-case: only fixes all-lowercase or all-uppercase strings
 // Leaves mixed-case (stylized names) alone
 // Skips short words: a, an, the, of, in, on, at, to, for, but, and, or, nor
@@ -156,7 +161,7 @@ function parseFilename(filename, inferredArtist) {
 
 // Calculate similarity score between query artist/album and candidate artist/album
 function calculateAlbumScore(queryArtist, queryAlbum, matchArtist, matchAlbum) {
-  const clean = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const clean = cleanKey;
   const qa = clean(queryArtist);
   const qb = clean(queryAlbum);
   const ma = clean(matchArtist);
@@ -403,9 +408,9 @@ async function fetchTracklist(candidate) {
             }
           }
           
-          const key = (t.trackName || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+          const key = cleanKey(t.trackName || '');
           const cleanTitle = (t.trackName || '').split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
-          const shortKey = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, "");
+          const shortKey = cleanKey(cleanTitle);
 
           const trackInfo = {
             title,
@@ -448,13 +453,15 @@ async function fetchTracklist(candidate) {
               .map(c => c.name);
             
             if (feats.length > 0) {
-              title = `${title} (feat. ${feats.join(' & ')})`;
+              if (!title.toLowerCase().includes('feat') && !title.toLowerCase().includes('ft')) {
+                title = `${title} (feat. ${feats.join(' & ')})`;
+              }
               artist = `${mainArtist} & ${feats.join(' & ')}`;
             }
           }
 
-          const key = (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, "");
-          const shortKey = (t.title_short || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+          const key = cleanKey(t.title || '');
+          const shortKey = cleanKey(t.title_short || '');
 
           const trackInfo = {
             title,
@@ -500,12 +507,12 @@ async function fetchTracklist(candidate) {
             .map(ac => ac.artist?.name || ac.name)
             .filter(name => name.toLowerCase() !== mainArtistName.toLowerCase());
 
-          if (feats.length > 0 && !title.toLowerCase().includes('feat')) {
+          if (feats.length > 0 && !title.toLowerCase().includes('feat') && !title.toLowerCase().includes('ft')) {
             title = `${title} (feat. ${feats.join(' & ')})`;
             artist = `${mainArtistName} & ${feats.join(' & ')}`;
           }
 
-          const key = (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+          const key = cleanKey(t.title || '');
           const trackInfo = {
             title,
             artist,
@@ -578,8 +585,8 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
   
   // Try matching with official tracklist first
   const baseTitleClean = title.split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
-  const normKey = baseTitleClean.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const fullNormKey = title.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normKey = cleanKey(baseTitleClean);
+  const fullNormKey = cleanKey(title);
   let matchedOfficial = false;
 
   if (tracklistMap && tracklistMap.has(normKey)) {

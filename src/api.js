@@ -1,5 +1,5 @@
 // MeloTag — API Module (iTunes, Deezer, MusicBrainz, LRCLIB)
-import { smartTitleCase } from './utils.js';
+import { smartTitleCase, cleanKey } from './utils.js';
 
 // --- LRCLIB Lyrics API ---
 export async function fetchLyricsFromLRCLIB(title, artist) {
@@ -218,7 +218,7 @@ export async function fetchUnifiedSuggestions(query) {
   // Merge and deduplicate
   const map = new Map();
   const getNormalizationKey = (track) => {
-    const clean = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const clean = cleanKey;
     return `${clean(track.trackName)}|${clean(track.artistName)}`;
   };
 
@@ -264,7 +264,7 @@ export async function fetchUnifiedSuggestions(query) {
 // Returns { tracklistMap: Map<normalizedKey, {title, artist, trackNumber}>, artworkUrl: string|null }
 // Calculate similarity score between query artist/album and candidate artist/album
 function calculateAlbumScore(queryArtist, queryAlbum, matchArtist, matchAlbum) {
-  const clean = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const clean = cleanKey;
   const qa = clean(queryArtist);
   const qb = clean(queryAlbum);
   const ma = clean(matchArtist);
@@ -413,9 +413,9 @@ export async function fetchAlbumContext(artist, album) {
                   }
                 }
                 
-                const key = (t.trackName || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+                const key = cleanKey(t.trackName || '');
                 const cleanTitle = (t.trackName || '').split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
-                const shortKey = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, "");
+                const shortKey = cleanKey(cleanTitle);
 
                 const trackInfo = {
                   title,
@@ -462,13 +462,15 @@ export async function fetchAlbumContext(artist, album) {
                     .map(c => c.name);
                   
                   if (feats.length > 0) {
-                    title = `${title} (feat. ${feats.join(' & ')})`;
+                    if (!title.toLowerCase().includes('feat') && !title.toLowerCase().includes('ft')) {
+                      title = `${title} (feat. ${feats.join(' & ')})`;
+                    }
                     artistVal = `${mainArtist} & ${feats.join(' & ')}`;
                   }
                 }
 
-                const key = (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, "");
-                const shortKey = (t.title_short || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+                const key = cleanKey(t.title || '');
+                const shortKey = cleanKey(t.title_short || '');
 
                 const trackInfo = {
                   title,
@@ -511,12 +513,12 @@ export async function fetchAlbumContext(artist, album) {
                   .map(ac => ac.artist?.name || ac.name)
                   .filter(name => name.toLowerCase() !== mainArtistName.toLowerCase());
 
-                if (feats.length > 0 && !title.toLowerCase().includes('feat')) {
+                if (feats.length > 0 && !title.toLowerCase().includes('feat') && !title.toLowerCase().includes('ft')) {
                   title = `${title} (feat. ${feats.join(' & ')})`;
                   artistVal = `${mainArtistName} & ${feats.join(' & ')}`;
                 }
 
-                const key = (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, "");
+                const key = cleanKey(t.title || '');
                 tracklistMap.set(key, {
                   title,
                   artist: artistVal,

@@ -4,7 +4,7 @@ import {
   btnMagic, btnAutoMatchAll, btnSaveAll, successOverlay,
   btnBatchAutotag, btnBatchSave, btnTagAsAlbum
 } from './dom.js';
-import { parseMessyFilename, cleanPromo, parseFeaturedArtist } from './utils.js';
+import { parseMessyFilename, cleanPromo, parseFeaturedArtist, cleanKey } from './utils.js';
 import { showModal, updateUI } from './ui.js';
 import { fetchUnifiedSuggestions, fetchLyricsFromLRCLIB, fetchAlbumContext } from './api.js';
 import { writeTagsToBuffer, triggerDownload } from './file-io.js';
@@ -43,8 +43,8 @@ export async function magicAutoTagTrack(track) {
       : stripped;
     // Get base title before any featured artist markers
     const baseTitleRaw = withoutArtist.split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
-    const normKey = cleanPromo(baseTitleRaw).toLowerCase().replace(/[^a-z0-9]/g, '');
-    const fullNormKey = cleanPromo(withoutArtist).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normKey = cleanKey(cleanPromo(baseTitleRaw));
+    const fullNormKey = cleanKey(cleanPromo(withoutArtist));
     let official = null;
     if (albumContext.tracklistMap.has(normKey)) {
       official = albumContext.tracklistMap.get(normKey);
