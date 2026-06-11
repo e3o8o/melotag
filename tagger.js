@@ -566,13 +566,29 @@ function inferFromFolderName(folderName) {
 
 // Main processing logic
 async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork, tracklistMap, globalMetadata) {
+  let existingTags = {};
+  try {
+    existingTags = NodeID3.read(filepath) || {};
+  } catch (err) {}
+
   const filename = path.basename(filepath);
   const { trackNum, title, featuredArtist } = parseFilename(filename, inferredArtist);
 
-  let finalTitle = featuredArtist ? `${title} (feat. ${featuredArtist})` : title;
-  let finalArtist = forceArtist || inferredArtist || "Unknown Artist";
+  let searchTitle = title;
+  let searchArtist = forceArtist || inferredArtist || existingTags.artist || "";
+
+  // If the file already has tags, use them as search hints
+  if (existingTags.title && !cleanText(existingTags.title).toLowerCase().includes("promo")) {
+    searchTitle = cleanText(smartTitleCase(existingTags.title));
+  }
+  if (existingTags.artist && !forceArtist && !inferredArtist) {
+    searchArtist = cleanText(existingTags.artist);
+  }
+
+  let finalTitle = featuredArtist ? `${searchTitle} (feat. ${featuredArtist})` : searchTitle;
+  let finalArtist = forceArtist || searchArtist || "Unknown Artist";
   if (featuredArtist && !forceArtist) {
-    finalArtist = `${inferredArtist} & ${featuredArtist}`;
+    finalArtist = `${searchArtist} & ${featuredArtist}`;
   }
   
   let finalAlbum = forceAlbum || inferredAlbum || "Unknown Album";
@@ -584,9 +600,9 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
   console.log(`\n${colors.bright}${colors.blue}➜ Processing:${colors.reset} ${filename}`);
   
   // Try matching with official tracklist first
-  const baseTitleClean = title.split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
+  const baseTitleClean = searchTitle.split(/\b(?:ft|feat|featuring)\b/i)[0].trim();
   const normKey = cleanKey(baseTitleClean);
-  const fullNormKey = cleanKey(title);
+  const fullNormKey = cleanKey(searchTitle);
   let matchedOfficial = false;
 
   if (tracklistMap && tracklistMap.has(normKey)) {
@@ -611,7 +627,7 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
 
   // Fetch from unified sources as fallback
   if (!matchedOfficial) {
-    const candidates = await fetchTrackMetadata(inferredArtist, title);
+    const candidates = await fetchTrackMetadata(searchArtist, searchTitle);
     if (candidates.length > 0) {
       const metadata = candidates[0];
       console.log(`  ${colors.green}✓ Matches ${metadata.source} database! (Score: ${metadata.score.toFixed(2)})${colors.reset}`);
@@ -726,11 +742,18 @@ async function main() {
     
     const folderName = path.basename(targetPath);
     const inferred = inferFromFolderName(folderName);
-    const inferredArtist = forceArtist || inferred.artist || "Unknown Artist";
-    const inferredAlbum = forceAlbum || inferred.album || "Unknown Album";
+    const inferredArtist = forceArtist || inferred.artist || "";
+    const inferredAlbum = forceAlbum || inferred.album || "";
 
-    console.log(`Inferred Artist: ${colors.bright}${colors.yellow}${inferredArtist}${colors.reset}`);
-    console.log(`Inferred Album:  ${colors.bright}${colors.yellow}${inferredAlbum}${colors.reset}`);
+    const GENERIC_FOLDER_NAMES = new Set(['songs', 'music', 'downloads', 'tracks', 'mp3', 'temp', 'mixed', 'misc', 'miscellaneous', 'desktop', 'documents', 'workspace']);
+    const isMixedFolder = args.includes('--mixed') || (!forceArtist && !forceAlbum && GENERIC_FOLDER_NAMES.has(folderName.toLowerCase().trim()));
+
+    if (isMixedFolder) {
+      console.log(`\n${colors.bright}${colors.yellow}Auto-detected mixed/compilation folder ("${folderName}"). Processing tracks individually...${colors.reset}`);
+    } else {
+      console.log(`Inferred Artist: ${colors.bright}${colors.yellow}${inferredArtist || "Unknown Artist"}${colors.reset}`);
+      console.log(`Inferred Album:  ${colors.bright}${colors.yellow}${inferredAlbum || "Unknown Album"}${colors.reset}`);
+    }
 
     const files = fs.readdirSync(targetPath).filter(f => f.toLowerCase().endsWith('.mp3'));
     if (files.length === 0) {
@@ -738,57 +761,61 @@ async function main() {
       return;
     }
 
-    console.log(`Found ${files.length} tracks. Searching for album-wide metadata across iTunes, Deezer, and MusicBrainz...`);
-
     let albumArtwork = null;
     let tracklistMap = new Map();
-    let resolvedArtist = inferredArtist;
-    let resolvedAlbum = inferredAlbum;
-    let globalMetadata = { year: '2025', genre: 'Afrobeats' };
+    let resolvedArtist = isMixedFolder ? "" : inferredArtist;
+    let resolvedAlbum = isMixedFolder ? "" : inferredAlbum;
+    let globalMetadata = isMixedFolder ? null : { year: '2025', genre: 'Afrobeats' };
 
-    const candidates = await searchAlbumAcrossSources(inferredArtist, inferredAlbum);
-    if (candidates.length > 0) {
-      console.log(`\n${colors.bright}Found ${candidates.length} candidate albums:${colors.reset}`);
-      candidates.slice(0, 5).forEach((cand, idx) => {
-        console.log(`  [${idx + 1}] [${cand.source}] ${cand.artist} - ${cand.album} (Score: ${cand.score.toFixed(2)})`);
-      });
+    if (!isMixedFolder) {
+      console.log(`Found ${files.length} tracks. Searching for album-wide metadata across iTunes, Deezer, and MusicBrainz...`);
 
-      let matchedCandidate = null;
-      for (const cand of candidates) {
-        console.log(`\nAttempting to resolve tracklist using candidate [${cand.source}]...`);
-        const { tracklistMap: tempMap, metadataOverride } = await fetchTracklist(cand);
-        if (tempMap && tempMap.size > 0) {
-          tracklistMap = tempMap;
-          matchedCandidate = cand;
-          resolvedArtist = forceArtist || cand.artist || inferredArtist;
-          resolvedAlbum = forceAlbum || cand.album || inferredAlbum;
-          if (metadataOverride.year) globalMetadata.year = metadataOverride.year;
-          if (metadataOverride.genre) globalMetadata.genre = metadataOverride.genre;
-          console.log(`${colors.green}✓ Successfully resolved tracklist (${tracklistMap.size} tracks) from ${cand.source}!${colors.reset}`);
-          break;
-        } else {
-          console.log(`${colors.yellow}⚠ No tracks resolved from ${cand.source}, trying next candidate...${colors.reset}`);
-        }
-      }
+      const candidates = await searchAlbumAcrossSources(inferredArtist, inferredAlbum);
+      if (candidates.length > 0) {
+        console.log(`\n${colors.bright}Found ${candidates.length} candidate albums:${colors.reset}`);
+        candidates.slice(0, 5).forEach((cand, idx) => {
+          console.log(`  [${idx + 1}] [${cand.source}] ${cand.artist} - ${cand.album} (Score: ${cand.score.toFixed(2)})`);
+        });
 
-      // Download the highest-quality cover art among matching candidates
-      const goodCandidates = candidates.filter(c => c.score >= 0.7);
-      const artPriority = { 'MusicBrainz': 3, 'iTunes': 2, 'Deezer': 1 };
-      goodCandidates.sort((a, b) => (artPriority[b.source] || 0) - (artPriority[a.source] || 0));
-
-      for (const cand of goodCandidates) {
-        if (cand.coverUrl) {
-          console.log(`Attempting to download cover art from ${cand.source}: ${cand.coverUrl}`);
-          const art = await downloadArtwork(cand.coverUrl);
-          if (art) {
-            albumArtwork = art;
-            console.log(`${colors.green}✓ Downloaded cover art from ${cand.source}.${colors.reset}`);
+        let matchedCandidate = null;
+        for (const cand of candidates) {
+          console.log(`\nAttempting to resolve tracklist using candidate [${cand.source}]...`);
+          const { tracklistMap: tempMap, metadataOverride } = await fetchTracklist(cand);
+          if (tempMap && tempMap.size > 0) {
+            tracklistMap = tempMap;
+            matchedCandidate = cand;
+            resolvedArtist = forceArtist || cand.artist || inferredArtist;
+            resolvedAlbum = forceAlbum || cand.album || inferredAlbum;
+            if (metadataOverride.year) globalMetadata.year = metadataOverride.year;
+            if (metadataOverride.genre) globalMetadata.genre = metadataOverride.genre;
+            console.log(`${colors.green}✓ Successfully resolved tracklist (${tracklistMap.size} tracks) from ${cand.source}!${colors.reset}`);
             break;
+          } else {
+            console.log(`${colors.yellow}⚠ No tracks resolved from ${cand.source}, trying next candidate...${colors.reset}`);
           }
         }
+
+        // Download the highest-quality cover art among matching candidates
+        const goodCandidates = candidates.filter(c => c.score >= 0.7);
+        const artPriority = { 'MusicBrainz': 3, 'iTunes': 2, 'Deezer': 1 };
+        goodCandidates.sort((a, b) => (artPriority[b.source] || 0) - (artPriority[a.source] || 0));
+
+        for (const cand of goodCandidates) {
+          if (cand.coverUrl) {
+            console.log(`Attempting to download cover art from ${cand.source}: ${cand.coverUrl}`);
+            const art = await downloadArtwork(cand.coverUrl);
+            if (art) {
+              albumArtwork = art;
+              console.log(`${colors.green}✓ Downloaded cover art from ${cand.source}.${colors.reset}`);
+              break;
+            }
+          }
+        }
+      } else {
+        console.log(`${colors.yellow}No album matches found across any API sources.${colors.reset}`);
       }
     } else {
-      console.log(`${colors.yellow}No album matches found across any API sources.${colors.reset}`);
+      console.log(`Found ${files.length} tracks. Processing each track individually...`);
     }
 
     // Process all MP3 files
