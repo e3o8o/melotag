@@ -74,6 +74,42 @@ Vite proxies `/api/` in development. In production, requests are handled by Verc
 
 ---
 
+## MeloTag CLI Tagger (`tagger.js`)
+
+MeloTag includes a powerful command-line tagging utility to bulk-tag and organize music folders in-place directly from your terminal.
+
+### CLI Features
+* **Multi-Source Album & Track Search**: Concurrently queries iTunes, Deezer, and MusicBrainz APIs to locate the best matching album metadata and tracklist.
+* **Smart Candidate Scoring**: Calculates similarity scores between the folder name (or user overrides) and API results to prevent matching incorrect bootlegs or mixtapes.
+* **Highest-Resolution Cover Art**: Prioritizes retrieving the best cover artwork available (uncompressed original from MusicBrainz Cover Art Archive > iTunes `1000x1000bb` > Deezer `cover_xl`), with automated download failure fallback.
+* **Automatic Tracklist Matching**: Matches files against the resolved album tracklist using fuzzy title and substring matching.
+* **Featured Artist Resolution**: Resolves featured artists and contributors for tracks, formatting titles cleanly (e.g. `Track Name (feat. Featured Artist)`).
+* **Clean In-Place Tagging & Renaming**: Strips promo junk, comments, and web links before writing clean ID3v2 tags directly into the MP3 buffer, and renames files to a unified layout (e.g. `01 - Track Title.mp3`).
+
+### CLI Usage
+
+Execute the utility using Node:
+```bash
+node tagger.js <file-or-folder-path> [options]
+```
+
+#### Options:
+* `--artist "Artist Name"`: Force a specific artist override for metadata searches.
+* `--album "Album Name"`: Force a specific album override for metadata searches.
+* `--no-rename`: Keep original file names (disable renaming to `Track - Title.mp3`).
+* `-h, --help`: Show the command-line help screen.
+
+#### Examples:
+```bash
+# Scan and tag an entire album folder in-place
+node tagger.js "/path/to/Burna-Boy-No-Sign-Of-Weakness-Album"
+
+# Tag a single track file with specific artist and album overrides
+node tagger.js "/path/to/track.mp3" --artist "Burna Boy" --album "No Sign of Weakness"
+```
+
+---
+
 ## Native iOS App Setup (Capacitor)
 
 MeloTag can be wrapped into a native iOS app using Capacitor:
