@@ -90,6 +90,27 @@ function cleanText(text) {
   return cleaned;
 }
 
+// Smart title-case: only fixes all-lowercase or all-uppercase strings
+// Leaves mixed-case (stylized names) alone
+// Skips short words: a, an, the, of, in, on, at, to, for, but, and, or, nor
+const LOWERCASE_WORDS = new Set(['a','an','the','of','in','on','at','to','for','but','and','or','nor','is','as','by']);
+function smartTitleCase(text) {
+  if (!text) return text;
+  const stripped = text.replace(/[^a-zA-Z]/g, '');
+  if (stripped.length === 0) return text;
+  const lower = stripped === stripped.toLowerCase();
+  const upper = stripped === stripped.toUpperCase();
+  if (!lower && !upper) return text; // already mixed-case, respect it
+  return text.split(/(\s+)/).map((word, i) => {
+    const clean = word.toLowerCase();
+    if (/\s/.test(word)) return word;
+    // Always capitalize first and last word
+    if (i === 0 || LOWERCASE_WORDS.has(clean) === false) {
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }
+    return clean;
+  }).join('');
+}
 
 // Clean filename to extract track number, title, and features
 function parseFilename(filename, inferredArtist) {
@@ -226,7 +247,7 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
   if (tracklistMap && tracklistMap.has(normKey)) {
     const official = tracklistMap.get(normKey);
     console.log(`  ${colors.green}✓ Matched official album tracklist! (${official.title})${colors.reset}`);
-    finalTitle = official.title;
+    finalTitle = smartTitleCase(official.title);
     finalArtist = official.artist;
     finalTrack = official.trackNumber;
     matchedOfficial = true;
@@ -263,9 +284,9 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
   }
 
   // Force clean promo names from all tags
-  finalTitle = cleanText(finalTitle);
+  finalTitle = smartTitleCase(cleanText(finalTitle));
   finalArtist = cleanText(finalArtist);
-  finalAlbum = cleanText(finalAlbum);
+  finalAlbum = smartTitleCase(cleanText(finalAlbum));
 
   const tags = {
     title: finalTitle,
