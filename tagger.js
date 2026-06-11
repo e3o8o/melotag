@@ -209,12 +209,12 @@ function cleanText(text) {
     /mp3bullet\.ng/gi, /waploaded\.com/gi, /naijaloaded\.com/gi,
     /9jaflaver\.com/gi, /fakaza\.com/gi, /djitunez\.com/gi,
     /ghkwaku\.com/gi, /freshpilot\.com/gi, /zamusic\.com/gi,
-    /mdundo\.com/gi, /boomplay\.com/gi,
+    /mdundo\.com/gi, /boomplay\.com/gi, /imack\.ng/gi,
 
     // Brand names without TLD
     /xtooxclusive/gi, /tooxclusive/gi, /notjustok/gi, /mp3bullet/gi,
     /waploaded/gi, /naijaloaded/gi, /9jaflaver/gi, /djitunez/gi,
-    /ghkwaku/gi, /freshpilot/gi, /fakaza/gi, /zamusic/gi,
+    /ghkwaku/gi, /freshpilot/gi, /fakaza/gi, /zamusic/gi, /imack/gi,
 
     // Partial suffix variants: xclusive, xclusivez, xclusives
     /\bxclusiv(?:e|es|ez)?\b/gi,
@@ -223,7 +223,7 @@ function cleanText(text) {
     /\bfree\s*mp3\b/gi, /\bdownload\b/gi, /\bpromo\b/gi, /\bexclusive\b/gi,
 
     // Bracket/paren-wrapped promo tags — e.g. "[XclusivePromo]", "(Waploaded.com)"
-    /[\[(][^\]()]*(?:xclusive|promo|download|waploaded|naijaloaded|tooxclusive|notjustok|mp3)[^\]()]*[\])]/gi,
+    /[\[(][^\]()]*(?:xclusive|promo|download|waploaded|naijaloaded|tooxclusive|notjustok|mp3|imack)[^\]()]*[\])]/gi,
   ];
   let cleaned = text;
   promos.forEach(promo => { cleaned = cleaned.replace(promo, ""); });

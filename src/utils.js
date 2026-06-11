@@ -18,6 +18,7 @@ const PROMO_PATTERNS = [
   /zamusic\.com/gi,
   /mdundo\.com/gi,
   /boomplay\.com/gi,
+  /imack\.ng/gi,
 
   // Brand names without TLD
   /xtooxclusive/gi,
@@ -32,6 +33,7 @@ const PROMO_PATTERNS = [
   /freshpilot/gi,
   /fakaza/gi,
   /zamusic/gi,
+  /imack/gi,
 
   // Partial suffix variants — things like "xclusive", "xclusivez", "xclusives"
   /\bxclusiv(?:e|es|ez)?\b/gi,
@@ -43,7 +45,7 @@ const PROMO_PATTERNS = [
   /\bexclusive\b/gi,
 
   // Bracket/paren wrapped promo — e.g. "[XclusivePromo]", "(Waploaded.com)"
-  /[\[(][^\]()]*(?:xclusive|promo|download|waploaded|naijaloaded|tooxclusive|notjustok|mp3)[^\]()]*[\])]/gi,
+  /[\[(][^\]()]*(?:xclusive|promo|download|waploaded|naijaloaded|tooxclusive|notjustok|mp3|imack)[^\]()]*[\])]/gi,
 ];
 
 export function cleanPromo(text) {
