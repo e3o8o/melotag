@@ -8,6 +8,142 @@
 const fs = require('fs');
 const path = require('path');
 const NodeID3 = require('node-id3');
+const { execSync } = require('child_process');
+
+let ffmpegCmd = 'ffmpeg';
+let ffprobeCmd = 'ffprobe';
+
+try {
+  try {
+    execSync('"/opt/homebrew/bin/ffmpeg" -version', { stdio: 'ignore' });
+    ffmpegCmd = '/opt/homebrew/bin/ffmpeg';
+  } catch (e) {
+    execSync('ffmpeg -version', { stdio: 'ignore' });
+  }
+} catch (e) {}
+
+try {
+  try {
+    execSync('"/opt/homebrew/bin/ffprobe" -version', { stdio: 'ignore' });
+    ffprobeCmd = '/opt/homebrew/bin/ffprobe';
+  } catch (e) {
+    execSync('ffprobe -version', { stdio: 'ignore' });
+  }
+} catch (e) {}
+
+// Check if ffmpeg and ffprobe are available
+function checkFfmpegDependency() {
+  try {
+    execSync(`"${ffmpegCmd}" -version`, { stdio: 'ignore' });
+    execSync(`"${ffprobeCmd}" -version`, { stdio: 'ignore' });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Read metadata tags from either MP3 or M4A files
+function readTags(filepath) {
+  const ext = path.extname(filepath).toLowerCase();
+  if (ext === '.m4a') {
+    try {
+      const cmd = `"${ffprobeCmd}" -v quiet -print_format json -show_format -show_streams "${filepath}"`;
+      const output = execSync(cmd, { encoding: 'utf8' });
+      const info = JSON.parse(output);
+      const tags = info.format?.tags || {};
+      return {
+        title: tags.title || '',
+        artist: tags.artist || '',
+        album: tags.album || '',
+        albumArtist: tags.album_artist || tags.artist || '',
+        trackNumber: tags.track ? tags.track.split('/')[0] : '',
+        year: tags.date ? tags.date.substring(0, 4) : '',
+        genre: tags.genre || ''
+      };
+    } catch (err) {
+      console.warn(`  [ffprobe] Failed to read M4A tags for ${path.basename(filepath)}: ${err.message}`);
+      return {};
+    }
+  } else {
+    try {
+      return NodeID3.read(filepath) || {};
+    } catch (err) {
+      return {};
+    }
+  }
+}
+
+// Write tags (and optionally artwork) to either MP3 or M4A files
+function writeTags(filepath, tags, artwork) {
+  const ext = path.extname(filepath).toLowerCase();
+  if (ext === '.m4a') {
+    const tempOutput = filepath + '.temp.m4a';
+    let cmd = `"${ffmpegCmd}" -y -i "${filepath}"`;
+    let tempArtFile = null;
+    let inputs = 1;
+
+    if (artwork && artwork.buffer) {
+      const artExt = artwork.mime === 'image/png' ? '.png' : '.jpg';
+      tempArtFile = filepath + '.temp_art' + artExt;
+      fs.writeFileSync(tempArtFile, artwork.buffer);
+      cmd += ` -i "${tempArtFile}"`;
+      inputs = 2;
+    }
+
+    cmd += ' -map 0:a';
+    if (inputs === 2) {
+      cmd += ' -map 1 -c:v copy -disposition:v:0 attached_pic';
+    } else {
+      cmd += ' -map 0:v? -c:v copy';
+    }
+
+    cmd += ' -map_metadata -1 -c:a copy';
+
+    if (tags.title !== undefined) cmd += ` -metadata title="${tags.title.replace(/"/g, '\\"')}"`;
+    if (tags.artist !== undefined) cmd += ` -metadata artist="${tags.artist.replace(/"/g, '\\"')}"`;
+    if (tags.album !== undefined) cmd += ` -metadata album="${tags.album.replace(/"/g, '\\"')}"`;
+    if (tags.performerInfo !== undefined) cmd += ` -metadata album_artist="${tags.performerInfo.replace(/"/g, '\\"')}"`;
+    if (tags.trackNumber !== undefined) cmd += ` -metadata track="${tags.trackNumber}"`;
+    if (tags.year !== undefined) cmd += ` -metadata date="${tags.year}"`;
+    if (tags.genre !== undefined) cmd += ` -metadata genre="${tags.genre.replace(/"/g, '\\"')}"`;
+
+    cmd += ` "${tempOutput}"`;
+
+    try {
+      execSync(cmd, { stdio: 'ignore' });
+      fs.renameSync(tempOutput, filepath);
+      return true;
+    } catch (err) {
+      console.error(`  ${colors.red}✗ ffmpeg error writing tags: ${err.message}${colors.reset}`);
+      if (fs.existsSync(tempOutput)) {
+        try { fs.unlinkSync(tempOutput); } catch (e) {}
+      }
+      return false;
+    } finally {
+      if (tempArtFile && fs.existsSync(tempArtFile)) {
+        try { fs.unlinkSync(tempArtFile); } catch (e) {}
+      }
+    }
+  } else {
+    try {
+      NodeID3.removeTags(filepath);
+      
+      const id3Tags = { ...tags };
+      if (artwork) {
+        id3Tags.image = {
+          mime: artwork.mime,
+          type: { id: 3 },
+          description: 'Cover',
+          imageBuffer: artwork.buffer
+        };
+      }
+      return NodeID3.write(id3Tags, filepath);
+    } catch (err) {
+      console.error(`  ${colors.red}✗ NodeID3 error writing tags: ${err.message}${colors.reset}`);
+      return false;
+    }
+  }
+}
 
 // ANSI escape codes for beautiful terminal output
 const colors = {
@@ -191,6 +327,48 @@ function calculateAlbumScore(queryArtist, queryAlbum, matchArtist, matchAlbum) {
   return artistScore * 0.5 + albumScore * 0.5;
 }
 
+// Calculate similarity score between query artist/title and candidate artist/title for tracks
+function calculateTrackScore(queryArtist, queryTitle, matchArtist, matchTitle) {
+  const clean = cleanKey;
+  
+  // Custom cleaner for track titles to strip common conjunctions like "and" or "&"
+  const cleanTrack = (str) => {
+    return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\band\b/g, '').replace(/[^a-z0-9]/g, '');
+  };
+
+  const qa = clean(queryArtist);
+  const qb = cleanTrack(queryTitle);
+  const ma = clean(matchArtist);
+  const mb = cleanTrack(matchTitle);
+
+  if (!qb) return 0;
+
+  // Exact matching for title
+  const exactTitle = qb === mb;
+  const titleSub = qb && mb ? (qb.includes(mb) || mb.includes(qb)) : false;
+
+  let titleScore = 0;
+  if (exactTitle) titleScore = 1.0;
+  else if (titleSub) titleScore = 0.8;
+  else titleScore = 0.0;
+
+  // Matching for artist
+  const exactArtist = qa === ma;
+  const artistSub = qa && ma ? (qa.includes(ma) || ma.includes(qa)) : false;
+
+  let artistScore = 0;
+  if (exactArtist) artistScore = 1.0;
+  else if (artistSub) artistScore = 0.8;
+  else artistScore = 0.2;
+
+  // Reject track-level matches if a query artist is provided but doesn't match the candidate artist at all
+  if (qa && artistScore === 0.2) {
+    return 0;
+  }
+
+  return titleScore * 0.7 + artistScore * 0.3;
+}
+
 // Search iTunes, Deezer, and MusicBrainz for candidate albums
 async function searchAlbumAcrossSources(artist, album) {
   const query = `${artist} ${album}`.trim();
@@ -304,7 +482,7 @@ async function fetchTrackMetadata(artist, title) {
             genre: item.primaryGenreName || '',
             year: item.releaseDate ? item.releaseDate.substring(0, 4) : '',
             coverUrl: item.artworkUrl100 ? item.artworkUrl100.replace('/100x100bb.jpg', '/1000x1000bb.jpg') : '',
-            score: calculateAlbumScore(artist || item.artistName || '', title, item.artistName, item.trackName)
+            score: calculateTrackScore(artist || item.artistName || '', title, item.artistName, item.trackName)
           });
         });
       }
@@ -330,7 +508,7 @@ async function fetchTrackMetadata(artist, title) {
             genre: '',
             year: '',
             coverUrl,
-            score: calculateAlbumScore(artist || item.artist?.name || '', title, item.artist?.name, item.title)
+            score: calculateTrackScore(artist || item.artist?.name || '', title, item.artist?.name, item.title)
           });
         });
       }
@@ -363,7 +541,7 @@ async function fetchTrackMetadata(artist, title) {
             genre: '',
             year: firstRelease.date ? firstRelease.date.substring(0, 4) : '',
             coverUrl: releaseMbid ? `https://coverartarchive.org/release/${releaseMbid}/front` : '',
-            score: calculateAlbumScore(artist || artistName, title, artistName, rec.title)
+            score: calculateTrackScore(artist || artistName, title, artistName, rec.title)
           });
         }
       }
@@ -379,6 +557,7 @@ async function fetchTrackMetadata(artist, title) {
 // Fetch tracklist from a specific candidate album
 async function fetchTracklist(candidate) {
   const tracklistMap = new Map();
+  const trackNumberMap = new Map();
   let metadataOverride = {
     genre: candidate.genre || '',
     year: candidate.year || ''
@@ -421,6 +600,7 @@ async function fetchTracklist(candidate) {
           if (shortKey && !tracklistMap.has(shortKey)) {
             tracklistMap.set(shortKey, trackInfo);
           }
+          trackNumberMap.set(trackInfo.trackNumber, trackInfo);
         });
       }
     } catch (e) {
@@ -472,6 +652,7 @@ async function fetchTracklist(candidate) {
           if (shortKey && !tracklistMap.has(shortKey)) {
             tracklistMap.set(shortKey, trackInfo);
           }
+          trackNumberMap.set(trackInfo.trackNumber, trackInfo);
         });
       }
     } catch (e) {
@@ -519,6 +700,7 @@ async function fetchTracklist(candidate) {
             trackNumber: String(t.number)
           };
           tracklistMap.set(key, trackInfo);
+          trackNumberMap.set(trackInfo.trackNumber, trackInfo);
         });
       }
     } catch (e) {
@@ -526,7 +708,7 @@ async function fetchTracklist(candidate) {
     }
   }
 
-  return { tracklistMap, metadataOverride };
+  return { tracklistMap, trackNumberMap, metadataOverride };
 }
 
 // Download cover artwork buffer
@@ -565,10 +747,16 @@ function inferFromFolderName(folderName) {
 }
 
 // Main processing logic
-async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork, tracklistMap, globalMetadata) {
+async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork, tracklistMap, trackNumberMap, globalMetadata) {
+  const ext = path.extname(filepath).toLowerCase();
+  if (ext === '.m4a' && !checkFfmpegDependency()) {
+    console.error(`  ${colors.red}✗ Error: ffmpeg and ffprobe are required to process M4A (AAC) files. Please install them (e.g., 'brew install ffmpeg').${colors.reset}`);
+    return;
+  }
+
   let existingTags = {};
   try {
-    existingTags = NodeID3.read(filepath) || {};
+    existingTags = readTags(filepath);
   } catch (err) {}
 
   const filename = path.basename(filepath);
@@ -591,10 +779,10 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
     finalArtist = `${searchArtist} & ${featuredArtist}`;
   }
   
-  let finalAlbum = forceAlbum || inferredAlbum || "Unknown Album";
-  let finalTrack = trackNum;
-  let finalYear = globalMetadata?.year || "2025";
-  let finalGenre = globalMetadata?.genre || "Afrobeats";
+  let finalAlbum = forceAlbum || inferredAlbum || existingTags.album || "Unknown Album";
+  let finalTrack = trackNum || (existingTags.trackNumber ? String(existingTags.trackNumber).split('/')[0] : "");
+  let finalYear = globalMetadata?.year || existingTags.year || "2025";
+  let finalGenre = globalMetadata?.genre || existingTags.genre || "Afrobeats";
   let artwork = albumArtwork;
 
   console.log(`\n${colors.bright}${colors.blue}➜ Processing:${colors.reset} ${filename}`);
@@ -612,24 +800,55 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
     finalArtist = official.artist;
     finalTrack = official.trackNumber;
     matchedOfficial = true;
+  } else if (tracklistMap && tracklistMap.has(fullNormKey)) {
+    const official = tracklistMap.get(fullNormKey);
+    console.log(`  ${colors.green}✓ Matched official album tracklist! (${official.title})${colors.reset}`);
+    finalTitle = smartTitleCase(official.title);
+    finalArtist = official.artist;
+    finalTrack = official.trackNumber;
+    matchedOfficial = true;
+  } else if (trackNumberMap && finalTrack && trackNumberMap.has(String(parseInt(finalTrack, 10)))) {
+    const official = trackNumberMap.get(String(parseInt(finalTrack, 10)));
+    console.log(`  ${colors.green}✓ Matched official album tracklist via track number #${finalTrack}! (${official.title})${colors.reset}`);
+    finalTitle = smartTitleCase(official.title);
+    finalArtist = official.artist;
+    finalTrack = official.trackNumber;
+    matchedOfficial = true;
   } else if (tracklistMap) {
     for (const [key, official] of tracklistMap.entries()) {
-      if (key.length >= 4 && (fullNormKey.includes(key) || key.includes(fullNormKey))) {
-        console.log(`  ${colors.green}✓ Matched official album tracklist via substring! (${official.title})${colors.reset}`);
-        finalTitle = smartTitleCase(official.title);
-        finalArtist = official.artist;
-        finalTrack = official.trackNumber;
-        matchedOfficial = true;
-        break;
+      const minLength = Math.min(key.length, normKey.length, fullNormKey.length);
+      if (minLength >= 2) {
+        // Custom cleaner that cleans "and" / "&"
+        const cleanTrack = (str) => {
+          return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\band\b/g, '').replace(/[^a-z0-9]/g, '');
+        };
+        const cleanOfficialKey = cleanTrack(official.title);
+        const cleanNormKey = cleanTrack(baseTitleClean);
+        const cleanFullNormKey = cleanTrack(searchTitle);
+
+        const match = cleanFullNormKey.includes(cleanOfficialKey) || 
+                      cleanOfficialKey.includes(cleanFullNormKey) || 
+                      cleanNormKey.includes(cleanOfficialKey) || 
+                      cleanOfficialKey.includes(cleanNormKey);
+
+        if (match) {
+          console.log(`  ${colors.green}✓ Matched official album tracklist via substring! (${official.title})${colors.reset}`);
+          finalTitle = smartTitleCase(official.title);
+          finalArtist = official.artist;
+          finalTrack = official.trackNumber;
+          matchedOfficial = true;
+          break;
+        }
       }
     }
   }
 
   // Fetch from unified sources as fallback
-  if (!matchedOfficial) {
+  const isGenericTitle = /^track\s*\d+$/i.test(searchTitle.trim()) || /untitled/i.test(searchTitle) || /unknown/i.test(searchTitle);
+  if (!matchedOfficial && !isGenericTitle) {
     const candidates = await fetchTrackMetadata(searchArtist, searchTitle);
-    if (candidates.length > 0) {
-      const metadata = candidates[0];
+    const metadata = candidates.length > 0 ? candidates[0] : null;
+    if (metadata && metadata.score >= 0.5) {
       console.log(`  ${colors.green}✓ Matches ${metadata.source} database! (Score: ${metadata.score.toFixed(2)})${colors.reset}`);
       finalTitle = metadata.title || finalTitle;
       finalArtist = metadata.artist || finalArtist;
@@ -664,6 +883,12 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
           }
         }
       }
+    } else {
+      if (metadata) {
+        console.log(`  ${colors.yellow}⚠ Low-confidence match in online databases (Score: ${metadata.score.toFixed(2)}). Skipping online tagging.${colors.reset}`);
+      } else {
+        console.log(`  ${colors.yellow}⚠ No match found in online databases. Skipping online tagging.${colors.reset}`);
+      }
     }
   }
 
@@ -682,19 +907,8 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
     genre: finalGenre
   };
 
-  if (artwork) {
-    tags.image = {
-      mime: artwork.mime,
-      type: { id: 3 }, // Front cover
-      description: 'Cover',
-      imageBuffer: artwork.buffer
-    };
-  }
-
   try {
-    NodeID3.removeTags(filepath);
-
-    const success = NodeID3.write(tags, filepath);
+    const success = writeTags(filepath, tags, artwork);
     if (success) {
       console.log(`  ${colors.green}✓ Tags saved: ${finalArtist} - ${finalTitle} [${finalAlbum}]${colors.reset}`);
       if (artwork) console.log(`  ${colors.green}✓ Cover art embedded successfully.${colors.reset}`);
@@ -705,14 +919,20 @@ async function processFile(filepath, inferredArtist, inferredAlbum, albumArtwork
     if (shouldRename) {
       let mainArtist = forceArtist || inferredArtist || finalArtist;
       mainArtist = mainArtist.split(/&|,|\band\b/i)[0].trim();
-      let newFilename = `${mainArtist} - ${finalTitle}.mp3`;
+      let newFilename = `${mainArtist} - ${finalTitle}${ext}`;
 
       newFilename = newFilename.replace(/[\\/*?:"<>|]/g, "");
-      const newFilepath = path.join(path.dirname(filepath), newFilename);
+      let newFilepath = path.join(path.dirname(filepath), newFilename);
 
       if (filepath !== newFilepath) {
+        let counter = 1;
+        while (fs.existsSync(newFilepath)) {
+          const nameWithoutExt = path.parse(newFilename).name;
+          newFilepath = path.join(path.dirname(filepath), `${nameWithoutExt} (${counter})${ext}`);
+          counter++;
+        }
         fs.renameSync(filepath, newFilepath);
-        console.log(`  ${colors.cyan}➜ Renamed file to: ${newFilename}${colors.reset}`);
+        console.log(`  ${colors.cyan}➜ Renamed file to: ${path.basename(newFilepath)}${colors.reset}`);
       }
     }
   } catch (err) {
@@ -729,12 +949,13 @@ async function main() {
   const stats = fs.statSync(targetPath);
 
   if (stats.isFile()) {
-    if (!targetPath.toLowerCase().endsWith('.mp3')) {
-      console.error(`${colors.red}Error: Selected file is not an MP3 file.${colors.reset}`);
+    const ext = targetPath.toLowerCase();
+    if (!ext.endsWith('.mp3') && !ext.endsWith('.m4a')) {
+      console.error(`${colors.red}Error: Selected file is not an MP3 or M4A file.${colors.reset}`);
       process.exit(1);
     }
     console.log(`${colors.bright}${colors.cyan}MeloTag single file processor starting...${colors.reset}`);
-    await processFile(targetPath, forceArtist || "", forceAlbum || "", null, null, null);
+    await processFile(targetPath, forceArtist || "", forceAlbum || "", null, null, null, null);
     console.log(`\n${colors.bright}${colors.green}✓ Finished tagging file!${colors.reset}\n`);
 
   } else if (stats.isDirectory()) {
@@ -742,10 +963,19 @@ async function main() {
     
     const folderName = path.basename(targetPath);
     const inferred = inferFromFolderName(folderName);
-    const inferredArtist = forceArtist || inferred.artist || "";
-    const inferredAlbum = forceAlbum || inferred.album || "";
+    let inferredArtist = forceArtist || inferred.artist || "";
+    let inferredAlbum = forceAlbum || inferred.album || "";
 
-    const GENERIC_FOLDER_NAMES = new Set(['songs', 'music', 'downloads', 'tracks', 'mp3', 'temp', 'mixed', 'misc', 'miscellaneous', 'desktop', 'documents', 'workspace']);
+    const GENERIC_FOLDER_NAMES = new Set(['songs', 'music', 'downloads', 'tracks', 'mp3', 'temp', 'mixed', 'misc', 'miscellaneous', 'desktop', 'documents', 'workspace', 'tasks', 'projects']);
+
+    if (!inferredArtist && !forceArtist) {
+      const parentPath = path.dirname(targetPath);
+      const parentFolderName = path.basename(parentPath);
+      if (parentFolderName && parentPath !== '/' && !GENERIC_FOLDER_NAMES.has(parentFolderName.toLowerCase().trim())) {
+        inferredArtist = parentFolderName;
+      }
+    }
+
     const isMixedFolder = args.includes('--mixed') || (!forceArtist && !forceAlbum && GENERIC_FOLDER_NAMES.has(folderName.toLowerCase().trim()));
 
     if (isMixedFolder) {
@@ -755,14 +985,18 @@ async function main() {
       console.log(`Inferred Album:  ${colors.bright}${colors.yellow}${inferredAlbum || "Unknown Album"}${colors.reset}`);
     }
 
-    const files = fs.readdirSync(targetPath).filter(f => f.toLowerCase().endsWith('.mp3'));
+    const files = fs.readdirSync(targetPath).filter(f => {
+      const ext = f.toLowerCase();
+      return ext.endsWith('.mp3') || ext.endsWith('.m4a');
+    });
     if (files.length === 0) {
-      console.log(`${colors.red}No MP3 files found in folder: ${targetPath}${colors.reset}`);
+      console.log(`${colors.red}No MP3 or M4A files found in folder: ${targetPath}${colors.reset}`);
       return;
     }
 
     let albumArtwork = null;
     let tracklistMap = new Map();
+    let trackNumberMap = new Map();
     let resolvedArtist = isMixedFolder ? "" : inferredArtist;
     let resolvedAlbum = isMixedFolder ? "" : inferredAlbum;
     let globalMetadata = isMixedFolder ? null : { year: '2025', genre: 'Afrobeats' };
@@ -772,17 +1006,31 @@ async function main() {
 
       const candidates = await searchAlbumAcrossSources(inferredArtist, inferredAlbum);
       if (candidates.length > 0) {
+        // Prioritize MusicBrainz and Deezer over iTunes for equal scores
+        const sourcePriority = { 'MusicBrainz': 3, 'Deezer': 2, 'iTunes': 1 };
+        candidates.sort((a, b) => {
+          if (Math.abs(b.score - a.score) < 0.01) {
+            return (sourcePriority[b.source] || 0) - (sourcePriority[a.source] || 0);
+          }
+          return b.score - a.score;
+        });
+
         console.log(`\n${colors.bright}Found ${candidates.length} candidate albums:${colors.reset}`);
         candidates.slice(0, 5).forEach((cand, idx) => {
           console.log(`  [${idx + 1}] [${cand.source}] ${cand.artist} - ${cand.album} (Score: ${cand.score.toFixed(2)})`);
         });
 
+        const minScore = inferredArtist ? 0.5 : 0.6;
         let matchedCandidate = null;
         for (const cand of candidates) {
+          if (cand.score < minScore) {
+            continue;
+          }
           console.log(`\nAttempting to resolve tracklist using candidate [${cand.source}]...`);
-          const { tracklistMap: tempMap, metadataOverride } = await fetchTracklist(cand);
+          const { tracklistMap: tempMap, trackNumberMap: tempNumMap, metadataOverride } = await fetchTracklist(cand);
           if (tempMap && tempMap.size > 0) {
             tracklistMap = tempMap;
+            trackNumberMap = tempNumMap;
             matchedCandidate = cand;
             resolvedArtist = forceArtist || cand.artist || inferredArtist;
             resolvedAlbum = forceAlbum || cand.album || inferredAlbum;
@@ -818,10 +1066,10 @@ async function main() {
       console.log(`Found ${files.length} tracks. Processing each track individually...`);
     }
 
-    // Process all MP3 files
+    // Process all files
     for (const filename of files.sort()) {
       const filepath = path.join(targetPath, filename);
-      await processFile(filepath, resolvedArtist, resolvedAlbum, albumArtwork, tracklistMap, globalMetadata);
+      await processFile(filepath, resolvedArtist, resolvedAlbum, albumArtwork, tracklistMap, trackNumberMap, globalMetadata);
     }
 
     console.log(`\n${colors.bright}${colors.green}✓ Finished tagging all ${files.length} files in folder!${colors.reset}\n`);
