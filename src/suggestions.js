@@ -8,6 +8,7 @@ import {
   artworkRes
 } from './dom.js';
 import { fetchUnifiedSuggestions, fetchLyricsFromLRCLIB } from './api.js';
+import { escapeHTML } from './utils.js';
 
 // Forward-declared dependencies
 let _renderArtworkPreview = null;
@@ -51,11 +52,11 @@ export async function triggerSearch(query) {
 
       card.innerHTML = `
         <div class="suggestion-card-main" title="Click to apply both text tags and cover image">
-          <div class="suggestion-artwork" style="background-image: url(${res.artworkUrl100 || ''})"></div>
+          <div class="suggestion-artwork" style="background-image: url(${encodeURI(res.artworkUrl100 || '')})"></div>
           <div class="suggestion-info">
-            <div class="suggestion-title">${res.trackName || 'Unknown Track'}</div>
-            <div class="suggestion-artist">${res.artistName || 'Unknown Artist'}</div>
-            <div class="suggestion-album">${res.collectionName || 'Unknown Album'}</div>
+            <div class="suggestion-title">${escapeHTML(res.trackName || 'Unknown Track')}</div>
+            <div class="suggestion-artist">${escapeHTML(res.artistName || 'Unknown Artist')}</div>
+            <div class="suggestion-album">${escapeHTML(res.collectionName || 'Unknown Album')}</div>
           </div>
           <div class="suggestion-score">${badgesHtml}</div>
         </div>

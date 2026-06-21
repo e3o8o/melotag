@@ -31,7 +31,7 @@
 .modal-title {
   font-size: 14px;
   font-weight: 600;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-sans);
   color: var(--text-primary);
 }
 
@@ -129,7 +129,7 @@
 .editor-track-name {
   font-size: 14px;
   font-weight: 600;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-sans);
   color: var(--text-primary);
 }
 
@@ -242,7 +242,7 @@ textarea:focus {
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-sans);
   color: var(--text-primary);
   margin-bottom: 12px;
 }

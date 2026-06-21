@@ -1,0 +1,323 @@
+/* ============================================================
+   Compact Landing — mobile & iPad only (<= 1024px)
+   Ledger variant, dark-theme adaptation of the compact-landing
+   style system. Desktop (>1024px) is intentionally untouched.
+   Tokens, components, and motion all live inside the media query
+   so nothing here can leak into the full desktop app.
+   ============================================================ */
+
+/* The landing hero is mobile/iPad only; hidden on desktop. */
+.mobile-landing-intro {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  /* ---- Scoped compact tokens (dark) ---- */
+  .sidebar {
+    --cl-hairline: rgba(255, 255, 255, 0.08);
+    --cl-mono: var(--font-mono);
+    --cl-ease: cubic-bezier(0.2, 0, 0, 1);
+    --cl-shadow-control:
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 2px 6px rgba(0, 0, 0, 0.4);
+    --cl-shadow-card:
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 6px 18px rgba(0, 0, 0, 0.4);
+  }
+
+  /* ---- Landing hero ----
+     Shown only where the sidebar header is hidden (<=743px), so it
+     never double-brands with the sidebar logo on iPad (744-1024px). */
+  .mobile-landing-intro {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px 16px 14px;
+    box-shadow: inset 0 -1px 0 0 var(--cl-hairline);
+  }
+
+  @media (max-width: 743px) {
+    .mobile-landing-intro {
+      display: flex;
+    }
+
+    /* On the Library tab the hero carries the brand, so the redundant
+       top title bar is hidden. Player/Editor tabs keep it for the back
+       button and context. */
+    body.tab-library .mobile-header {
+      display: none;
+    }
+  }
+
+  .mli-brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+
+  .mli-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    flex: none;
+    object-fit: contain;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  }
+
+  .mli-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .mli-name {
+    font-family: var(--font-sans);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--text-primary);
+  }
+
+  .mli-tag {
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-tertiary);
+    text-wrap: pretty;
+  }
+
+  .mli-meta {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--cl-mono);
+    font-size: 11px;
+    letter-spacing: -0.01em;
+    color: var(--text-tertiary);
+  }
+
+  .mli-meta .mli-sep {
+    opacity: 0.4;
+  }
+
+  /* ---- Drop zone -> tactile command surface ---- */
+  @media (max-width: 768px) {
+    .drop-zone {
+      margin: 14px 16px 0;
+      padding: 20px 16px;
+      border-radius: 12px;
+      border: none;
+      background: rgba(255, 255, 255, 0.02);
+      box-shadow: var(--cl-shadow-card);
+      gap: 6px;
+    }
+
+    .drop-zone.dragover {
+      box-shadow:
+        0 0 0 1px var(--chrome),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 6px 18px rgba(0, 0, 0, 0.4);
+      background: var(--chrome-glow);
+    }
+
+    .drop-zone p {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .drop-zone span {
+      font-family: var(--cl-mono);
+      font-size: 11px;
+      color: var(--text-quaternary);
+    }
+  }
+
+  /* ---- Picker bar -> tactile command-field pair ---- */
+  .picker-bar {
+    gap: 8px;
+    padding: 12px 16px 4px;
+  }
+
+  .picker-bar .btn {
+    flex: 1;
+    min-height: 42px;
+    border-radius: 9px;
+    border: none;
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: var(--cl-shadow-control);
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-weight: 560;
+    letter-spacing: -0.01em;
+    transition: transform 120ms var(--cl-ease), color 120ms var(--cl-ease);
+  }
+
+  .picker-bar .btn:active {
+    transform: scale(0.96);
+    color: var(--text-primary);
+  }
+
+  /* ---- Search -> tactile command field ----
+     Deterministic geometry so the icon never overlaps the text:
+     wrap padding 0, icon at 14px, input text starts at 40px. */
+  .search-wrap {
+    margin: 12px 16px 2px;
+    padding: 0;
+  }
+
+  .search-wrap .search-icon {
+    left: 14px;
+  }
+
+  .search-wrap .search-input {
+    min-height: 42px;
+    border-radius: 9px;
+    border: none;
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: var(--cl-shadow-control);
+    /* 16px keeps iOS Safari from zooming the page on focus */
+    font-size: 16px;
+    padding: 10px 12px 10px 40px;
+  }
+
+  .search-wrap .search-input::placeholder {
+    font-family: var(--cl-mono);
+    color: var(--text-quaternary);
+  }
+
+  /* ---- Track ledger ---- */
+  .track-list-header {
+    padding: 14px 16px 8px;
+    font-family: var(--cl-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+
+  .track-list-header,
+  #tracks-count,
+  .track-item-time,
+  .track-item-num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .track-item {
+    box-shadow: inset 0 1px 0 0 var(--cl-hairline);
+    transition: background 120ms var(--cl-ease);
+  }
+
+  .track-item:active {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .track-item-time {
+    font-family: var(--cl-mono);
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+
+  /* Status badges read as quiet ledger dots + tiny mono label */
+  .track-item-meta .badge {
+    font-family: var(--cl-mono);
+    font-size: 9px;
+    letter-spacing: 0.03em;
+    padding: 2px 7px 2px 6px;
+  }
+
+  .track-item-meta .badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+    opacity: 0.9;
+  }
+
+  .track-item-meta .badge-saved::before {
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16);
+  }
+
+  /* ---- Prevent iOS focus-zoom on every text control ----
+     iOS Safari zooms the viewport whenever a focused field has a
+     font-size below 16px. Raising all editable controls to 16px on
+     touch breakpoints removes the zoom without disabling pinch-zoom. */
+  input[type="text"],
+  input[type="number"],
+  input[type="search"],
+  input[type="email"],
+  input[type="url"],
+  input[type="tel"],
+  textarea,
+  select,
+  .modal-input,
+  .search-input {
+    font-size: 16px;
+  }
+
+  /* ---- iPad / tablet sidebar header: keep action buttons from being
+     clipped inside the narrow 240px sidebar by making them icon-only.
+     (The sidebar header is hidden on phones, so this only affects the
+     iPad/tablet range where it is visible.) ---- */
+  .sidebar-header {
+    gap: 8px;
+  }
+
+  .sidebar-header .header-actions {
+    flex-shrink: 0;
+  }
+
+  .sidebar-header .header-actions .btn span {
+    display: none;
+  }
+
+  .sidebar-header .header-actions .btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    justify-content: center;
+    flex: none;
+  }
+}
+
+/* ============================================================
+   Staggered fade-in entrance (compact-landing motion)
+   Only when the user has no reduced-motion preference, and only
+   on the landing breakpoints. Animates opacity/transform only —
+   no layout shift.
+   ============================================================ */
+@media (max-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  body.tab-library .mobile-landing-intro,
+  body.tab-library .drop-zone,
+  body.tab-library .picker-bar,
+  body.tab-library .search-wrap,
+  body.tab-library .track-list-container {
+    opacity: 0;
+    animation: cl-enter 560ms var(--cl-ease, cubic-bezier(0.2, 0, 0, 1)) forwards;
+  }
+
+  body.tab-library .mobile-landing-intro { animation-delay: 0ms; }
+  body.tab-library .drop-zone { animation-delay: 80ms; }
+  body.tab-library .picker-bar { animation-delay: 160ms; }
+  body.tab-library .search-wrap { animation-delay: 220ms; }
+  body.tab-library .track-list-container { animation-delay: 300ms; }
+
+  @keyframes cl-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+      filter: blur(3px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+  }
+}

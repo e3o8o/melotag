@@ -2,15 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>MeloTag — Client-Side Music Player & Tag Editor</title>
+  <meta name="description" content="MeloTag is a fast, private, client-side MP3 player and ID3 tag editor. Edit titles, artists, album art, and lyrics right in your browser — your files never leave your device.">
+  <link rel="canonical" href="https://melotag.app/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="MeloTag">
+  <meta property="og:title" content="MeloTag — Client-Side Music Player & Tag Editor">
+  <meta property="og:description" content="Edit MP3 tags, album art, and lyrics in your browser. Private by design — files never leave your device.">
+  <meta property="og:url" content="https://melotag.app/">
+  <meta property="og:image" content="https://melotag.app/icon-512.png">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="MeloTag — Client-Side Music Player & Tag Editor">
+  <meta name="twitter:description" content="Edit MP3 tags, album art, and lyrics in your browser. Private by design — files never leave your device.">
+  <meta name="twitter:image" content="https://melotag.app/icon-512.png">
+
   <link rel="stylesheet" href="src/styles/index.css">
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MeloTag">
-  <link rel="icon" href="icon.svg">
-<link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="icon" href="melotag_icon.png">
+  <link rel="apple-touch-icon" href="melotag_icon.png">
   <meta name="theme-color" content="#F5C518">
   <!-- Service Worker registered dynamically via main.js -->
 </head>
@@ -24,9 +41,10 @@
   </div>
 
   <div class="app">
+    <h1 class="visually-hidden" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">MeloTag — Client-Side Music Player &amp; ID3 Tag Editor</h1>
     <!-- Mobile Header -->
     <div class="mobile-header" id="mobile-header">
-      <button class="mobile-back-btn" id="mobile-back-btn" style="display:none">
+      <button class="mobile-back-btn" id="mobile-back-btn" style="display:none" aria-label="Go back">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
       </button>
       <span class="mobile-header-title" id="mobile-header-title">MeloTag</span>
@@ -36,10 +54,27 @@
     <div class="app-body">
     <!-- Sidebar -->
     <aside class="sidebar">
+      <!-- Compact landing hero (mobile / iPad only) -->
+      <div class="mobile-landing-intro" role="presentation">
+        <div class="mli-brand">
+          <img src="melotag_icon.png" alt="" width="34" height="34" class="mli-icon" />
+          <div class="mli-titles">
+            <span class="mli-name">MeloTag</span>
+            <span class="mli-tag">Tag, edit &amp; play your music — private, in your browser.</span>
+          </div>
+        </div>
+        <div class="mli-meta">
+          <span>client-side</span>
+          <span class="mli-sep">·</span>
+          <span>no upload</span>
+          <span class="mli-sep">·</span>
+          <span>ID3 tags</span>
+        </div>
+      </div>
       <div class="sidebar-header">
         <div class="logo">
           <div class="logo-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9.5V20l12-8L7 4"/></svg>
+            <img src="melotag_icon.png" alt="MeloTag" width="32" height="32" />
           </div>
           <span class="logo-text">MeloTag</span>
         </div>
@@ -219,7 +254,7 @@
       <!-- Empty State -->
       <div id="inspector-empty" class="empty-state">
         <div class="empty-state-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9.5V20l12-8L7 4"/></svg>
+          <img src="melotag_icon.png" alt="" width="40" height="40" />
         </div>
         <h3>No Track Selected</h3>
         <p>Add MP3 files using the sidebar and select a track to begin tagging.</p>
@@ -420,7 +455,7 @@
       <div class="np-queue-panel" id="np-queue-panel">
         <div class="np-queue-header">
           <span>Play Queue</span>
-          <button class="np-queue-close" id="np-queue-close">&times;</button>
+          <button class="np-queue-close" id="np-queue-close" aria-label="Close queue">&times;</button>
         </div>
         <div class="np-queue-list" id="np-queue-list"></div>
       </div>
@@ -492,7 +527,7 @@
   </nav>
 
   <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/mp3tag.js@3.7.1/dist/mp3tag.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mp3tag.js@3.7.1/dist/mp3tag.min.js" integrity="sha384-aofnJ2zuTas5Jgw8NdK7udEcN5fZ/5kkLakpFK1hcO/czIBb+xAeuzVwfUQSQaOi" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

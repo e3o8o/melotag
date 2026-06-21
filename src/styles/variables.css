@@ -1,7 +1,11 @@
 /* MeloTag — Signage Aesthetic: Ink × Chrome Yellow */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
 
 :root {
+  /* Typography */
+  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
   /* Chrome yellow accent (kept as signature) */
   --chrome: #F5C518;
   --chrome-dim: #d4a800;
@@ -39,7 +43,8 @@
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em;
   background: var(--bg-ground);
   color: var(--text-primary);
   height: 100vh;

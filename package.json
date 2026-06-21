@@ -1,6 +1,6 @@
 {
   "name": "melotag-web",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Client-Side MP3 Tag and Cover Art Editor",
   "main": "index.html",
   "scripts": {

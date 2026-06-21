@@ -1,9 +1,9 @@
-const CACHE_NAME = 'melotag-v4';
+const CACHE_NAME = 'melotag-v5';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icon.svg',
+  './melotag_icon.png',
   './icon-180.png',
   './icon-192.png',
   './icon-512.png'

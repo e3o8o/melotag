@@ -3,7 +3,7 @@ import { state, playerState } from './state.js';
 import {
   npQueuePanel, npQueueList, btnNpQueue, npQueueClose, npInfoClick
 } from './dom.js';
-import { formatTime } from './utils.js';
+import { formatTime, escapeHTML } from './utils.js';
 
 // Forward-declared dependency
 let _selectTrack = null;
@@ -23,8 +23,8 @@ export function renderQueue() {
     const time = t.duration ? formatTime(t.duration) : '--:--';
     return `<div class="np-queue-item${isCurrent ? ' current' : ''}" data-id="${t.id}">
       <div class="np-queue-item-info">
-        <div class="np-queue-item-title">${t.title || t.name}</div>
-        <div class="np-queue-item-artist">${t.artist || 'Unknown Artist'}</div>
+        <div class="np-queue-item-title">${escapeHTML(t.title || t.name || '')}</div>
+        <div class="np-queue-item-artist">${escapeHTML(t.artist || 'Unknown Artist')}</div>
       </div>
       <span class="np-queue-item-time">${time}</span>
     </div>`;
